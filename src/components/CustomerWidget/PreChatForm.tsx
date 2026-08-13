@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, User, Mail, Phone, MessageSquare, Building2, Loader2 } from 'lucide-react';
+import { Send, User, Mail, Phone, MessageSquare, Building2, Loader2, Megaphone, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import { WidgetConfig } from '../../types';
 import { LoadingSpinner } from '../LoadingSpinner';
 
@@ -23,6 +23,26 @@ export const PreChatForm: React.FC<PreChatFormProps> = ({ widgetConfig, onSubmit
   const [subject, setSubject] = useState('');
   const [initialMessage, setInitialMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [promoIdx, setPromoIdx] = useState(0);
+
+  // Active Promo Banners List
+  const activePromos = (
+    widgetConfig.promoBanners && widgetConfig.promoBanners.length > 0
+      ? widgetConfig.promoBanners
+      : widgetConfig.promoBanner
+      ? [widgetConfig.promoBanner]
+      : []
+  ).filter((p) => p.enabled && p.imageUrl);
+
+  const currentPromo = activePromos[promoIdx % activePromos.length];
+
+  const handleNextPromo = () => {
+    setPromoIdx((prev) => (prev + 1) % activePromos.length);
+  };
+
+  const handlePrevPromo = () => {
+    setPromoIdx((prev) => (prev - 1 + activePromos.length) % activePromos.length);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +75,91 @@ export const PreChatForm: React.FC<PreChatFormProps> = ({ widgetConfig, onSubmit
         <h3 className="font-semibold text-slate-900 text-base">লাইভ চ্যাট শুরু করুন</h3>
         <p className="text-xs text-slate-500 mt-0.5">সাপোর্ট এজেন্টের সাথে সরাসরি কথা বলতে তথ্য দিন।</p>
       </div>
+
+      {/* Promoted Website Banner Carousel */}
+      {activePromos.length > 0 && currentPromo && (
+        <div className="p-3 bg-gradient-to-br from-purple-900 to-indigo-950 text-white border border-purple-500/40 rounded-2xl space-y-2.5 shadow-md relative group">
+          {/* Header & Controls */}
+          <div className="flex items-center justify-between text-amber-300 font-bold text-[11px] uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 truncate">
+              <Megaphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="truncate">{currentPromo.title || 'স্পনসরড ওয়েবসাইট'}</span>
+            </div>
+
+            {activePromos.length > 1 && (
+              <div className="flex items-center gap-1 shrink-0 ml-1">
+                <span className="text-[10px] text-purple-200 font-mono mr-1">
+                  {promoIdx + 1}/{activePromos.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={handlePrevPromo}
+                  className="p-1 bg-white/10 hover:bg-white/20 rounded-lg transition text-white cursor-pointer"
+                  title="পূর্ববর্তী ওয়েবসাইট"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextPromo}
+                  className="p-1 bg-white/10 hover:bg-white/20 rounded-lg transition text-white cursor-pointer"
+                  title="পরবর্তী ওয়েবসাইট"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Image */}
+          <a
+            href={currentPromo.linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block rounded-xl overflow-hidden border border-white/20 group relative shadow-sm"
+          >
+            <img
+              src={currentPromo.imageUrl}
+              alt={currentPromo.title}
+              className="w-full h-28 object-cover group-hover:scale-105 transition duration-300"
+            />
+          </a>
+
+          {/* Description */}
+          {currentPromo.description && (
+            <p className="text-[11px] text-purple-100 leading-snug">
+              {currentPromo.description}
+            </p>
+          )}
+
+          {/* Button */}
+          <a
+            href={currentPromo.linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2 px-3 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition"
+          >
+            <span>{currentPromo.buttonText || 'ওয়েবসাইট ভিজিট করুন'}</span>
+            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+          </a>
+
+          {/* Dots Indicator if multiple */}
+          {activePromos.length > 1 && (
+            <div className="flex items-center justify-center gap-1 pt-1">
+              {activePromos.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setPromoIdx(i)}
+                  className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                    i === promoIdx ? 'w-4 bg-amber-400' : 'w-1.5 bg-white/40'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Full Name */}
       <div>

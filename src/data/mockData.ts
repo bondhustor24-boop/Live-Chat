@@ -48,7 +48,36 @@ export const INITIAL_WIDGET_CONFIG: WidgetConfig = {
   websiteUrl: 'https://live-chat-swart-nine.vercel.app/',
   telegramBotToken: '8861406019:AAHhY47ahk7DS495Ly1eLsa0tYZikFQ86f0',
   telegramChatId: '6081054558',
-  telegramNotificationsEnabled: true
+  telegramNotificationsEnabled: true,
+  promoBanners: [
+    {
+      id: 'promo_1',
+      enabled: true,
+      title: '🔥 অফিশিয়াল মেম্বারশিপ ও লাইভ পোর্টাল',
+      description: 'আমাদের প্রধান ওয়েবসাইটের সার্ভিসসমূহ ও অফার দেখুন।',
+      imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80',
+      linkUrl: 'https://live-chat-swart-nine.vercel.app/',
+      buttonText: 'প্রধান ওয়েবসাইট ভিজিট করুন 🚀'
+    },
+    {
+      id: 'promo_2',
+      enabled: true,
+      title: '💎 নতুন রেজিস্ট্রেশন ও বোনাস সাইট',
+      description: 'আজই অ্যাকাউন্ট তৈরি করে জিতে নিন আকর্ষণীয় পয়েন্ট ও সাপোর্ট ক্যাশব্যাক।',
+      imageUrl: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&auto=format&fit=crop&q=80',
+      linkUrl: 'https://live-chat-swart-nine.vercel.app/',
+      buttonText: 'রেজিস্ট্রেশন সাইটে যান 🔗'
+    }
+  ],
+  promoBanner: {
+    id: 'promo_1',
+    enabled: true,
+    title: '🔥 অফিশিয়াল মেম্বারশিপ ও লাইভ পোর্টাল',
+    description: 'আমাদের প্রধান ওয়েবসাইটের সার্ভিসসমূহ ও অফার দেখুন।',
+    imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80',
+    linkUrl: 'https://live-chat-swart-nine.vercel.app/',
+    buttonText: 'প্রধান ওয়েবসাইট ভিজিট করুন 🚀'
+  }
 };
 
 export const INITIAL_CANNED_RESPONSES: CannedResponse[] = [

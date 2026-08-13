@@ -120,6 +120,17 @@ export interface LiveVisitor {
   status: 'browsing' | 'in_chat' | 'invited';
 }
 
+export interface PromoBanner {
+  id?: string;
+  enabled: boolean;
+  title: string;
+  description?: string;
+  imageUrl: string;
+  linkUrl: string;
+  buttonText?: string;
+  createdAt?: string;
+}
+
 export interface WidgetConfig {
   primaryColor: string;
   headerTitle: string;
@@ -136,4 +147,6 @@ export interface WidgetConfig {
   telegramBotToken?: string;
   telegramChatId?: string;
   telegramNotificationsEnabled?: boolean;
+  promoBanner?: PromoBanner;
+  promoBanners?: PromoBanner[];
 }

@@ -29,9 +29,17 @@ import {
   Tag,
   Clock,
   X,
-  Ban
+  Ban,
+  Megaphone,
+  Image as ImageIcon,
+  Upload,
+  Edit3,
+  Eye,
+  EyeOff,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
-import { Agent, ChatSession, ChatMessage, WidgetConfig, BlockedUser, AdminUser } from '../../types';
+import { Agent, ChatSession, ChatMessage, WidgetConfig, BlockedUser, AdminUser, PromoBanner } from '../../types';
 import { CODE_GS_SCRIPT } from './CodeGsModal';
 import { LoadingSpinner, LoadingButton } from '../LoadingSpinner';
 
@@ -81,7 +89,162 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [loginError, setLoginError] = useState('');
 
   // Active Admin Sub-tab
-  const [adminTab, setAdminTab] = useState<'overview' | 'live_chat' | 'agents' | 'codegs' | 'blocked_users' | 'admin_users' | 'settings' | 'spinners'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'live_chat' | 'agents' | 'codegs' | 'blocked_users' | 'admin_users' | 'settings' | 'promotion' | 'spinners'>('overview');
+
+  // Website Promotion State (Multi-site)
+  const getInitialBanners = (): PromoBanner[] => {
+    if (widgetConfig.promoBanners && widgetConfig.promoBanners.length > 0) {
+      return widgetConfig.promoBanners;
+    }
+    if (widgetConfig.promoBanner) {
+      return [{ ...widgetConfig.promoBanner, id: widgetConfig.promoBanner.id || 'promo_1' }];
+    }
+    return [
+      {
+        id: 'promo_1',
+        enabled: true,
+        title: '🔥 অফিশিয়াল মেম্বারশিপ ও লাইভ পোর্টাল',
+        description: 'আমাদের প্রধান ওয়েবসাইটের সার্ভিসসমূহ ও অফার দেখুন।',
+        imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80',
+        linkUrl: 'https://live-chat-swart-nine.vercel.app/',
+        buttonText: 'প্রধান ওয়েবসাইট ভিজিট করুন 🚀'
+      }
+    ];
+  };
+
+  const [promoList, setPromoList] = useState<PromoBanner[]>(getInitialBanners);
+  const [editingPromoId, setEditingPromoId] = useState<string | null>(null);
+
+  // Form Fields
+  const [promoEnabled, setPromoEnabled] = useState<boolean>(true);
+  const [promoTitle, setPromoTitle] = useState('');
+  const [promoDescription, setPromoDescription] = useState('');
+  const [promoImageUrl, setPromoImageUrl] = useState('https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80');
+  const [promoLinkUrl, setPromoLinkUrl] = useState('https://live-chat-swart-nine.vercel.app/');
+  const [promoButtonText, setPromoButtonText] = useState('ওয়েবসাইট ভিজিট করুন 🚀');
+  const [isSavingPromo, setIsSavingPromo] = useState(false);
+  const [promoSaveSuccess, setPromoSaveSuccess] = useState(false);
+  const [promoSuccessMessage, setPromoSuccessMessage] = useState('ওয়েবসাইট প্রমোশন সেভ করা হয়েছে!');
+
+  useEffect(() => {
+    if (widgetConfig.promoBanners && widgetConfig.promoBanners.length > 0) {
+      setPromoList(widgetConfig.promoBanners);
+    } else if (widgetConfig.promoBanner) {
+      setPromoList([{ ...widgetConfig.promoBanner, id: widgetConfig.promoBanner.id || 'promo_1' }]);
+    }
+  }, [widgetConfig.promoBanners, widgetConfig.promoBanner]);
+
+  const handleResetPromoForm = () => {
+    setEditingPromoId(null);
+    setPromoEnabled(true);
+    setPromoTitle('');
+    setPromoDescription('');
+    setPromoImageUrl('https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80');
+    setPromoLinkUrl('https://live-chat-swart-nine.vercel.app/');
+    setPromoButtonText('ওয়েবসাইট ভিজিট করুন 🚀');
+  };
+
+  const handleSelectPromoForEdit = (item: PromoBanner) => {
+    setEditingPromoId(item.id || null);
+    setPromoEnabled(item.enabled);
+    setPromoTitle(item.title || '');
+    setPromoDescription(item.description || '');
+    setPromoImageUrl(item.imageUrl || '');
+    setPromoLinkUrl(item.linkUrl || '');
+    setPromoButtonText(item.buttonText || '');
+  };
+
+  const handlePromoImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      if (evt.target?.result) {
+        setPromoImageUrl(evt.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSavePromo = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingPromo(true);
+
+    let updatedList: PromoBanner[] = [];
+
+    if (editingPromoId) {
+      // Edit existing
+      updatedList = promoList.map((item) => {
+        if (item.id === editingPromoId) {
+          return {
+            ...item,
+            enabled: promoEnabled,
+            title: promoTitle,
+            description: promoDescription,
+            imageUrl: promoImageUrl,
+            linkUrl: promoLinkUrl,
+            buttonText: promoButtonText
+          };
+        }
+        return item;
+      });
+      setPromoSuccessMessage('ওয়েবসাইট প্রমোশন আপডেট করা হয়েছে!');
+    } else {
+      // Create new
+      const newItem: PromoBanner = {
+        id: 'promo_' + Date.now(),
+        enabled: promoEnabled,
+        title: promoTitle,
+        description: promoDescription,
+        imageUrl: promoImageUrl,
+        linkUrl: promoLinkUrl,
+        buttonText: promoButtonText,
+        createdAt: new Date().toISOString()
+      };
+      updatedList = [newItem, ...promoList];
+      setPromoSuccessMessage('নতুন ওয়েবসাইট প্রমোশন যোগ করা হয়েছে!');
+    }
+
+    setPromoList(updatedList);
+    onUpdateWidgetConfig({
+      promoBanners: updatedList,
+      promoBanner: updatedList.length > 0 ? updatedList[0] : undefined
+    });
+
+    setTimeout(() => {
+      setIsSavingPromo(false);
+      setPromoSaveSuccess(true);
+      handleResetPromoForm();
+      setTimeout(() => setPromoSaveSuccess(false), 3000);
+    }, 300);
+  };
+
+  const handleDeletePromo = (idToDelete: string) => {
+    if (!confirm('আপনি কি এই ওয়েবসাইট প্রমোশনটি মুছে ফেলতে চান?')) return;
+    const updatedList = promoList.filter((item) => item.id !== idToDelete);
+    setPromoList(updatedList);
+    onUpdateWidgetConfig({
+      promoBanners: updatedList,
+      promoBanner: updatedList.length > 0 ? updatedList[0] : undefined
+    });
+    if (editingPromoId === idToDelete) {
+      handleResetPromoForm();
+    }
+  };
+
+  const handleTogglePromoEnabled = (idToToggle: string) => {
+    const updatedList = promoList.map((item) => {
+      if (item.id === idToToggle) {
+        return { ...item, enabled: !item.enabled };
+      }
+      return item;
+    });
+    setPromoList(updatedList);
+    onUpdateWidgetConfig({
+      promoBanners: updatedList,
+      promoBanner: updatedList.length > 0 ? updatedList[0] : undefined
+    });
+  };
 
   // Loading Spinner Demo State
   const [demoLoadingOverlay, setDemoLoadingOverlay] = useState(false);
@@ -415,23 +578,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // LOGGED IN -> ADMIN DASHBOARD VIEW
   return (
-    <div id="admin-dashboard-page" className="flex-1 bg-slate-50 overflow-y-auto p-4 sm:p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div id="admin-dashboard-page" className="flex-1 bg-slate-50 overflow-y-auto p-3 sm:p-5 text-[10px]">
+      <div className="max-w-6xl mx-auto space-y-5">
         
         {/* Top Admin Navigation Header */}
-        <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[10px]">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md">
-              <ShieldCheck className="w-6 h-6" />
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md">
+              <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <span>নোভাচ্যাট অ্যাডমিন কন্ট্রোল প্যানেল</span>
-                <span className="text-[10px] bg-emerald-500 text-slate-950 font-black uppercase px-2 py-0.5 rounded-full">
+                <span className="text-[9px] bg-emerald-500 text-slate-950 font-black uppercase px-2 py-0.5 rounded-full">
                   সক্রিয়
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-[10px] text-slate-400">
                 লগইন একাউন্ট: <span className="text-blue-300 font-semibold">{adminEmail}</span>
               </p>
             </div>
@@ -440,33 +603,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
               onClick={onOpenCodeGsModal}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition shadow-sm"
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-semibold rounded-xl flex items-center gap-1.5 transition shadow-sm cursor-pointer"
             >
-              <Code className="w-4 h-4" />
+              <Code className="w-3.5 h-3.5" />
               <span>Code.gs ফাইল</span>
             </button>
 
             <button
               onClick={handleLogout}
-              className="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition"
+              className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-[10px] font-semibold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
               <span>লগআউট</span>
             </button>
           </div>
         </div>
 
         {/* Sub Navigation Bar */}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-2 text-xs font-semibold overflow-x-auto">
+        <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 text-[10px] font-semibold overflow-x-auto">
           <button
             onClick={() => setAdminTab('overview')}
-            className={`px-4 py-2 rounded-xl flex items-center gap-2 transition ${
+            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
               adminTab === 'overview'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <BarChart3 className="w-4 h-4" />
+            <BarChart3 className="w-3.5 h-3.5" />
             <span>সংক্ষিপ্ত ওভারভিউ</span>
           </button>
 
@@ -477,67 +640,79 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 setSelectedAdminChatId(chats[0].id);
               }
             }}
-            className={`px-4 py-2 rounded-xl flex items-center gap-2 transition ${
+            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
               adminTab === 'live_chat'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <MessageSquare className="w-4 h-4 text-amber-500 shrink-0" />
+            <MessageSquare className="w-3.5 h-3.5 text-amber-500 shrink-0" />
             <span>💬 কাস্টমার লাইভ চ্যাট ({chats.length})</span>
           </button>
 
           <button
             onClick={() => setAdminTab('agents')}
-            className={`px-4 py-2 rounded-xl flex items-center gap-2 transition ${
+            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
               adminTab === 'agents'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <Users className="w-4 h-4" />
+            <Users className="w-3.5 h-3.5" />
             <span>সাপোর্ট এজেন্টসমূহ ({agents.length})</span>
           </button>
 
           <button
+            onClick={() => setAdminTab('promotion')}
+            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+              adminTab === 'promotion'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm font-bold'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Megaphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>📢 ওয়েবসাইট প্রমোশন (Promote Site)</span>
+          </button>
+
+          <button
             onClick={() => setAdminTab('codegs')}
-            className={`px-4 py-2 rounded-xl flex items-center gap-2 transition ${
+            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
               adminTab === 'codegs'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <FileSpreadsheet className="w-4 h-4" />
+            <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>Code.gs ও গুগল শিট সিঙ্ক</span>
           </button>
 
           <button
             onClick={() => setAdminTab('blocked_users')}
-            className={`px-4 py-2 rounded-xl flex items-center gap-2 transition ${
+            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
               adminTab === 'blocked_users'
                 ? 'bg-rose-600 text-white shadow-sm font-bold'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <ShieldCheck className="w-4 h-4 text-rose-500" />
+            <ShieldCheck className="w-3.5 h-3.5 text-rose-500" />
             <span>🚫 ব্লকড ইউজার আইডি ({blockedUsers.length})</span>
           </button>
 
           <button
             onClick={() => setAdminTab('admin_users')}
-            className={`px-4 py-2 rounded-xl flex items-center gap-2 transition ${
+            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
               adminTab === 'admin_users'
                 ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm font-bold'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <KeyRound className="w-4 h-4 text-indigo-500" />
+            <KeyRound className="w-3.5 h-3.5 text-indigo-500" />
             <span>👤 ইউজার ও রোল শিট ({adminUsersList.length})</span>
           </button>
 
           <button
             onClick={() => setAdminTab('settings')}
-            className={`px-4 py-2 rounded-xl flex items-center gap-2 transition ${
+            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
               adminTab === 'settings'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
@@ -1581,6 +1756,392 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </table>
                 </div>
 
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: WEBSITE PROMOTION MANAGEMENT */}
+        {adminTab === 'promotion' && (
+          <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-xs space-y-6 text-[10px]">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center font-bold shadow-xs">
+                  <Megaphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900">মাল্টিপল ওয়েবসাইট প্রমোশন ম্যানেজার (Multiple Site Promotions)</h3>
+                  <p className="text-[10px] text-slate-500">
+                    একাধিক ওয়েবসাইট অ্যাড, এডিট, ডিলিট এবং অন/অফ করতে পারবেন। ইউজার ড্যাশবোর্ডে সবগুলো কাস্টমারদের দেখানো হবে।
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleResetPromoForm}
+                className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition text-[10px] cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>নতুন ওয়েবসাইট প্রমোট যোগ করুন</span>
+              </button>
+            </div>
+
+            {promoSaveSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center gap-2 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="font-semibold">{promoSuccessMessage}</span>
+              </div>
+            )}
+
+            {/* List of Promoted Websites */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-slate-900 text-[11px] flex items-center gap-2">
+                  <span>সংযুক্ত সকল প্রমোটেড ওয়েবসাইটসমূহ ({promoList.length})</span>
+                </h4>
+                <span className="text-[9px] text-slate-400 font-semibold">
+                  সক্রিয় ওয়েবসাইট: {promoList.filter((p) => p.enabled).length} টি
+                </span>
+              </div>
+
+              {promoList.length === 0 ? (
+                <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-2xl space-y-2">
+                  <Megaphone className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="font-semibold text-slate-500">কোনো প্রমোটেড ওয়েবসাইট যোগ করা হয়নি।</p>
+                  <button
+                    onClick={handleResetPromoForm}
+                    className="px-3 py-1.5 bg-purple-600 text-white font-bold rounded-xl text-[10px]"
+                  >
+                    + প্রথম ওয়েবসাইট যুক্ত করুন
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {promoList.map((item, idx) => {
+                    const isBeingEdited = editingPromoId === item.id;
+                    return (
+                      <div
+                        key={item.id || idx}
+                        className={`border rounded-2xl p-3 flex flex-col justify-between space-y-3 transition relative bg-white ${
+                          isBeingEdited
+                            ? 'border-purple-500 ring-2 ring-purple-500/20 shadow-md'
+                            : 'border-slate-200 hover:border-slate-300 shadow-xs'
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          {/* Image & Status */}
+                          <div className="relative rounded-xl overflow-hidden h-28 bg-slate-100 border border-slate-200">
+                            {item.imageUrl ? (
+                              <img
+                                src={item.imageUrl}
+                                alt={item.title}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                <ImageIcon className="w-6 h-6 opacity-40" />
+                              </div>
+                            )}
+
+                            <div className="absolute top-2 left-2 flex items-center gap-1">
+                              <span
+                                className={`px-2 py-0.5 rounded-md font-bold text-[9px] uppercase shadow-xs flex items-center gap-1 ${
+                                  item.enabled
+                                    ? 'bg-emerald-500 text-white'
+                                    : 'bg-slate-700 text-slate-300'
+                                }`}
+                              >
+                                {item.enabled ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                                <span>{item.enabled ? 'সক্রিয়' : 'বন্ধ'}</span>
+                              </span>
+                            </div>
+
+                            {isBeingEdited && (
+                              <div className="absolute top-2 right-2 bg-purple-600 text-white font-bold text-[9px] px-2 py-0.5 rounded-md shadow-xs">
+                                এডিটিং চলছে
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Title & Description */}
+                          <div>
+                            <h5 className="font-bold text-slate-900 text-[11px] line-clamp-1">{item.title || 'শিরোনামহীন'}</h5>
+                            {item.description && (
+                              <p className="text-[9px] text-slate-500 line-clamp-2 mt-0.5">{item.description}</p>
+                            )}
+                          </div>
+
+                          {/* Website Link */}
+                          <a
+                            href={item.linkUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[9px] text-blue-600 hover:underline font-mono truncate block flex items-center gap-1"
+                          >
+                            <Globe className="w-3 h-3 text-blue-500 shrink-0" />
+                            <span className="truncate">{item.linkUrl}</span>
+                          </a>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePromoEnabled(item.id || '')}
+                            title={item.enabled ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}
+                            className={`px-2 py-1 rounded-lg font-semibold text-[9px] flex items-center gap-1 transition cursor-pointer ${
+                              item.enabled
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                            }`}
+                          >
+                            {item.enabled ? (
+                              <>
+                                <EyeOff className="w-3 h-3" />
+                                <span>অফ করুন</span>
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="w-3 h-3" />
+                                <span>অন করুন</span>
+                              </>
+                            )}
+                          </button>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectPromoForEdit(item)}
+                              className="p-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-lg transition font-bold flex items-center gap-1 text-[9px] cursor-pointer"
+                              title="সম্পাদনা করুন (Edit)"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>এডিট</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePromo(item.id || '')}
+                              className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer"
+                              title="ডিলিট করুন (Delete)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Form & Live Preview Section */}
+            <div className="pt-4 border-t border-slate-200">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Form Controls */}
+                <form onSubmit={handleSavePromo} className="space-y-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                    <h4 className="font-bold text-slate-900 text-[11px] flex items-center gap-1.5">
+                      <Megaphone className="w-3.5 h-3.5 text-purple-600" />
+                      <span>
+                        {editingPromoId ? 'ওয়েবসাইট প্রমোশন সম্পাদনা (Editing Site)' : 'নতুন ওয়েবসাইট প্রমোশন যুক্ত করুন (Add New Site)'}
+                      </span>
+                    </h4>
+                    {editingPromoId && (
+                      <button
+                        type="button"
+                        onClick={handleResetPromoForm}
+                        className="text-[9px] text-rose-600 hover:underline font-bold"
+                      >
+                        বাতিল করুন (Cancel)
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Enable Switch */}
+                  <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200">
+                    <span className="font-bold text-slate-700">প্রমোশন স্ট্যাটাস (Status):</span>
+                    <button
+                      type="button"
+                      onClick={() => setPromoEnabled(!promoEnabled)}
+                      className={`px-3 py-1 rounded-full font-bold text-[9px] flex items-center gap-1.5 transition cursor-pointer ${
+                        promoEnabled
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-slate-100 text-slate-600 border border-slate-300'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${promoEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                      <span>{promoEnabled ? 'সক্রিয় (Active)' : 'নিষ্ক্রিয় (Disabled)'}</span>
+                    </button>
+                  </div>
+
+                  {/* Image Upload */}
+                  <div className="space-y-1.5">
+                    <label className="block font-bold text-slate-700 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-purple-600" />
+                      <span>প্রমোশন ফটো আপলোড (Image Upload) *</span>
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-2 items-center">
+                      <div className="relative flex-1 w-full">
+                        <input
+                          type="text"
+                          value={promoImageUrl}
+                          onChange={(e) => setPromoImageUrl(e.target.value)}
+                          placeholder="ছবি/ফটোর URL লিখুন বা সিলেক্ট করুন"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-[10px]"
+                        />
+                      </div>
+                      <label className="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold border border-purple-200 rounded-xl cursor-pointer flex items-center gap-1.5 shrink-0 transition text-[10px]">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>ফটো আপলোড</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePromoImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                    <p className="text-[9px] text-slate-400">কম্পিউটার/মোবাইল থেকে ছবি আপলোড করুন অথবা ফটো ইমেজের URL দিন।</p>
+                  </div>
+
+                  {/* Title */}
+                  <div className="space-y-1">
+                    <label className="block font-bold text-slate-700">প্রমোশন শিরোনাম (Title) *</label>
+                    <input
+                      type="text"
+                      required
+                      value={promoTitle}
+                      onChange={(e) => setPromoTitle(e.target.value)}
+                      placeholder="যেমন: 🔥 অফিশিয়াল পোর্টাল ও সার্ভিস ওয়েবসাইট"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-[10px]"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div className="space-y-1">
+                    <label className="block font-bold text-slate-700">প্রমোশন বিবরণ (Description)</label>
+                    <textarea
+                      rows={2}
+                      value={promoDescription}
+                      onChange={(e) => setPromoDescription(e.target.value)}
+                      placeholder="ওয়েবসাইট বা অফার সম্পর্কে সংক্ষেপে লিখুন"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-[10px]"
+                    />
+                  </div>
+
+                  {/* Website Link */}
+                  <div className="space-y-1">
+                    <label className="block font-bold text-slate-700 flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-blue-600" />
+                      <span>ওয়েবসাইট লিংক (Website URL) *</span>
+                    </label>
+                    <input
+                      type="url"
+                      required
+                      value={promoLinkUrl}
+                      onChange={(e) => setPromoLinkUrl(e.target.value)}
+                      placeholder="https://live-chat-swart-nine.vercel.app/"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 font-mono text-[10px]"
+                    />
+                    <p className="text-[9px] text-slate-400">ইউজার ফটোতে বা বাটনে ক্লিক করলে সরাসরি এই লিংকে চলে যাবে।</p>
+                  </div>
+
+                  {/* Button Text */}
+                  <div className="space-y-1">
+                    <label className="block font-bold text-slate-700">বাটনের লেখা (Button Text)</label>
+                    <input
+                      type="text"
+                      value={promoButtonText}
+                      onChange={(e) => setPromoButtonText(e.target.value)}
+                      placeholder="যেমন: ওয়েবসাইট ভিজিট করুন 🚀"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-[10px]"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSavingPromo}
+                      className="flex-1 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 text-[10px] cursor-pointer"
+                    >
+                      {isSavingPromo ? (
+                        <LoadingSpinner size="xs" color="white" label="সেভ হচ্ছে..." />
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>{editingPromoId ? 'প্রমোশন আপডেট করুন (Update)' : 'প্রমোশন যোগ করুন (Save Site)'}</span>
+                        </>
+                      )}
+                    </button>
+
+                    {editingPromoId && (
+                      <button
+                        type="button"
+                        onClick={handleResetPromoForm}
+                        className="px-3 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition text-[10px] cursor-pointer"
+                      >
+                        বাতিল
+                      </button>
+                    )}
+                  </div>
+                </form>
+
+                {/* Live Preview Side */}
+                <div className="space-y-2">
+                  <h4 className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                    <span>ইউজার ড্যাশবোর্ড লাইভ প্রিভিউ (User View Preview)</span>
+                  </h4>
+                  <div className="border border-purple-200 bg-purple-50/40 rounded-2xl p-3.5 space-y-3">
+                    <p className="text-[9px] text-purple-700 font-semibold">
+                      কাস্টমার চ্যাট স্ক্রিনে যেভাবে প্রদর্শিত হবে:
+                    </p>
+
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-md overflow-hidden space-y-0">
+                      {/* Top Photo */}
+                      {promoImageUrl ? (
+                        <a href={promoLinkUrl || '#'} target="_blank" rel="noopener noreferrer" className="block relative group overflow-hidden">
+                          <img
+                            src={promoImageUrl}
+                            alt={promoTitle}
+                            className="w-full h-36 object-cover group-hover:scale-105 transition duration-300"
+                          />
+                          <div className="absolute top-2 left-2 bg-slate-900/80 backdrop-blur-xs text-amber-300 text-[9px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
+                            <Megaphone className="w-3 h-3" />
+                            <span>প্রমোটেড ওয়েবসাইট</span>
+                          </div>
+                        </a>
+                      ) : (
+                        <div className="w-full h-28 bg-slate-100 flex items-center justify-center text-slate-400">
+                          <ImageIcon className="w-8 h-8 opacity-40" />
+                        </div>
+                      )}
+
+                      {/* Content & Link Underneath */}
+                      <div className="p-3 space-y-2">
+                        <h5 className="font-bold text-slate-900 text-[11px] leading-tight">{promoTitle || 'শিরোনাম'}</h5>
+                        {promoDescription && (
+                          <p className="text-[10px] text-slate-600 leading-snug">{promoDescription}</p>
+                        )}
+                        {promoLinkUrl && (
+                          <a
+                            href={promoLinkUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full py-2 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition text-[10px]"
+                          >
+                            <span>{promoButtonText || 'ওয়েবসাইট ভিজিট করুন'}</span>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
