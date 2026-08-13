@@ -195,7 +195,12 @@ async function sendTelegramNotification(chat: ChatSession, messageContent: strin
   const escapeHtml = (str: string) =>
     (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  const header = isNewChat ? '🆕 <b>নতুন ভিজিটর চ্যাট শুরু করেছেন!</b>' : '📩 <b>নতুন কাস্টমার মেসেজ এসেছে!</b>';
+  const adminLink = widgetConfig.websiteUrl || 'https://live-chat-swart-nine.vercel.app/';
+  const displayMsg = messageContent.trim() || '📷 [ছবি/ফাইল পাঠিয়েছেন]';
+
+  const header = isNewChat
+    ? `🆕 <b><a href="${adminLink}">নতুন ভিজিটর চ্যাট শুরু করেছেন (লাইভ চ্যাট লিঙ্ক)</a></b>`
+    : `📩 <b><a href="${adminLink}">নতুন কাস্টমার মেসেজ এসেছে (লাইভ চ্যাট লিঙ্ক)</a></b>`;
 
   const text = `${header}
 
@@ -203,9 +208,11 @@ async function sendTelegramNotification(chat: ChatSession, messageContent: strin
 📱 <b>ফোন:</b> ${escapeHtml(chat.customer.phone || 'N/A')}
 📧 <b>ইমেইল:</b> ${escapeHtml(chat.customer.email || 'N/A')}
 🏢 <b>ডিপার্টমেন্ট:</b> ${escapeHtml(chat.department || 'General')}
-💬 <b>মেসেজ:</b> ${escapeHtml(messageContent)}
+💬 <b>মেসেজ:</b> ${escapeHtml(displayMsg)}
 🌐 <b>আইপি:</b> ${escapeHtml(chat.customer.ipAddress || 'N/A')}
-⏰ <b>সময়:</b> ${new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}`;
+⏰ <b>সময়:</b> ${new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
+
+🔗 <b><a href="${adminLink}">মেসেজের উত্তর দিতে এখানে ক্লিক করে লাইভ চ্যাট ড্যাশবোর্ডে ঢুকুন</a></b>`;
 
   try {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -215,6 +222,7 @@ async function sendTelegramNotification(chat: ChatSession, messageContent: strin
         chat_id: chatId,
         text: text,
         parse_mode: 'HTML',
+        disable_web_page_preview: false,
       }),
     });
     const result = await res.json();
@@ -875,7 +883,7 @@ app.post('/api/chats/:id/messages', (req, res) => {
 
   targetChat.updatedAt = new Date().toISOString();
   if (!isInternalNote) {
-    targetChat.lastMessage = content;
+    targetChat.lastMessage = content.trim() || (attachments && attachments.length > 0 ? '📷 [ছবি/ফাইল]' : '');
     targetChat.lastMessageTime = 'Just now';
     if (senderRole === 'customer') {
       targetChat.unreadCountAgent = (targetChat.unreadCountAgent || 0) + 1;
@@ -900,7 +908,7 @@ app.post('/api/chats/:id/messages', (req, res) => {
 
   // Send Telegram Notification if message is from customer
   if (senderRole === 'customer') {
-    sendTelegramNotification(targetChat, newMessage.content, false);
+    sendTelegramNotification(targetChat, newMessage.content || (attachments && attachments.length > 0 ? '📷 [ছবি/ফাইল]' : ''), false);
   }
 
   // Check AI Auto Reply if enabled

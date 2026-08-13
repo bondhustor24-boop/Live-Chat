@@ -840,17 +840,18 @@ export default function App() {
   };
 
   const handleSendCustomerMessage = async (text: string, attachments?: any[]) => {
-    if (!customerChatId || !text.trim()) return;
+    if (!customerChatId || (!text.trim() && (!attachments || attachments.length === 0))) return;
 
     const currentChat = chats.find((c) => c.id === customerChatId);
     const msgId = 'msg_' + Date.now();
+    const displayMsg = text.trim() || (attachments && attachments.length > 0 ? '📷 [ছবি/ফাইল]' : '');
     const newMsg: ChatMessage = {
       id: msgId,
       chatId: customerChatId,
       senderRole: 'customer',
       senderName: currentChat?.customer.name || 'Visitor',
       senderAvatar: currentChat?.customer.avatar,
-      content: text,
+      content: displayMsg,
       attachments,
       timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
       readStatus: 'delivered',
@@ -864,7 +865,7 @@ export default function App() {
     const updatedChat = currentChat
       ? {
           ...currentChat,
-          lastMessage: text,
+          lastMessage: displayMsg,
           updatedAt: new Date().toISOString(),
           unreadCountAgent: (currentChat.unreadCountAgent || 0) + 1,
         }
@@ -1071,18 +1072,20 @@ export default function App() {
   };
 
   // Agent Actions
-  const handleSendAgentMessage = async (text: string, isInternalNote?: boolean) => {
-    if (!selectedChatId || !text.trim()) return;
+  const handleSendAgentMessage = async (text: string, isInternalNote?: boolean, attachments?: any[]) => {
+    if (!selectedChatId || (!text.trim() && (!attachments || attachments.length === 0))) return;
 
     const currentChat = chats.find((c) => c.id === selectedChatId);
+    const displayMsg = text.trim() || (attachments && attachments.length > 0 ? '📷 [ছবি/ফাইল]' : '');
     const newMsg: ChatMessage = {
       id: 'msg_' + Date.now(),
       chatId: selectedChatId,
       senderRole: 'agent',
       senderName: activeAgent.name,
       senderAvatar: activeAgent.avatar,
-      content: text,
+      content: displayMsg,
       isInternalNote,
+      attachments,
       timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
       readStatus: 'delivered',
     };
@@ -1095,7 +1098,7 @@ export default function App() {
     const updatedChat = currentChat
       ? {
           ...currentChat,
-          lastMessage: isInternalNote ? currentChat.lastMessage : text,
+          lastMessage: isInternalNote ? currentChat.lastMessage : displayMsg,
           updatedAt: new Date().toISOString(),
           unreadCountCustomer: isInternalNote ? currentChat.unreadCountCustomer : currentChat.unreadCountCustomer + 1,
         }
