@@ -29,6 +29,14 @@ import {
   INITIAL_LIVE_VISITORS,
   INITIAL_WIDGET_CONFIG
 } from './data/mockData';
+import {
+  syncChatToFirestore,
+  syncMessageToFirestore,
+  deleteChatFromFirestore,
+  syncWidgetConfigToFirestore,
+  loadFirestoreData,
+  setupFirestoreRealtimeListeners
+} from './lib/firestoreSync';
 
 export default function App() {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
@@ -247,8 +255,48 @@ export default function App() {
     });
   };
 
-  // Connect WebSocket & Fetch Initial REST Data (with 5-second continuous sync)
+  // Connect WebSocket, Firestore Realtime Listener & Fetch Initial REST Data
   useEffect(() => {
+    // Setup Realtime Firestore Listener (for Vercel & cross-device sync)
+    setupFirestoreRealtimeListeners(
+      (firestoreChats) => {
+        if (firestoreChats && firestoreChats.length > 0) {
+          setChats((prev) => {
+            // Merge Firestore chats with local state
+            const map = new Map();
+            firestoreChats.forEach((c) => map.set(c.id, c));
+            prev.forEach((c) => {
+              if (!map.has(c.id)) map.set(c.id, c);
+            });
+            return Array.from(map.values()).sort((a: any, b: any) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+          });
+        }
+      },
+      (firestoreMessagesMap) => {
+        if (firestoreMessagesMap && Object.keys(firestoreMessagesMap).length > 0) {
+          setMessages((prev) => ({
+            ...prev,
+            ...firestoreMessagesMap,
+          }));
+        }
+      }
+    );
+
+    // Initial load from Firestore
+    loadFirestoreData().then((data) => {
+      if (data) {
+        if (data.chats && data.chats.length > 0) {
+          setChats(data.chats);
+        }
+        if (data.messages && Object.keys(data.messages).length > 0) {
+          setMessages(data.messages);
+        }
+        if (data.widgetConfig) {
+          setWidgetConfig(data.widgetConfig);
+        }
+      }
+    });
+
     fetchInitialData();
     connectWebSocket();
 
@@ -541,7 +589,7 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.warn('API /api/chats unavailable (GitHub Pages static host), creating local chat session');
+      console.warn('API /api/chats unavailable (Vercel/Static mode), syncing directly with Firestore');
     }
 
     if (!serverOk) {
@@ -590,6 +638,10 @@ export default function App() {
       setCustomerChatId(chatId);
       setSelectedChatId(chatId);
 
+      // Sync directly to Firestore
+      syncChatToFirestore(newSession);
+      syncMessageToFirestore(firstMsg);
+
       // Direct Google Sheet Sync
       syncToGoogleSheetDirect(widgetConfig.appsScriptUrl, {
         rows: [{
@@ -605,7 +657,7 @@ export default function App() {
         }]
       });
 
-      // AI auto reply on GitHub Pages static host
+      // AI auto reply when in client static/Vercel mode
       if (widgetConfig.enableAiAutoReply) {
         setTimeout(() => {
           const aiText = getSmartLocalAiReply(data.initialMessage);
@@ -623,11 +675,13 @@ export default function App() {
             ...prev,
             [chatId]: [...(prev[chatId] || []), aiMsg],
           }));
+          const updatedChat = { ...newSession, lastMessage: aiMsg.content, updatedAt: new Date().toISOString() };
           setChats((prev) =>
-            prev.map((c) =>
-              c.id === chatId ? { ...c, lastMessage: aiMsg.content, updatedAt: new Date().toISOString() } : c
-            )
+            prev.map((c) => (c.id === chatId ? updatedChat : c))
           );
+          syncMessageToFirestore(aiMsg);
+          syncChatToFirestore(updatedChat);
+
           triggerMessageNotification(widgetConfig.botName, aiMsg.content);
 
           syncToGoogleSheetDirect(widgetConfig.appsScriptUrl, {
@@ -670,18 +724,24 @@ export default function App() {
       [customerChatId]: [...(prev[customerChatId] || []), newMsg],
     }));
 
-    setChats((prev) =>
-      prev.map((c) =>
-        c.id === customerChatId
-          ? {
-              ...c,
-              lastMessage: text,
-              updatedAt: new Date().toISOString(),
-              unreadCountAgent: (c.unreadCountAgent || 0) + 1,
-            }
-          : c
-      )
-    );
+    const updatedChat = currentChat
+      ? {
+          ...currentChat,
+          lastMessage: text,
+          updatedAt: new Date().toISOString(),
+          unreadCountAgent: (currentChat.unreadCountAgent || 0) + 1,
+        }
+      : null;
+
+    if (updatedChat) {
+      setChats((prev) =>
+        prev.map((c) => (c.id === customerChatId ? updatedChat : c))
+      );
+      syncChatToFirestore(updatedChat);
+    }
+
+    // Direct Firestore sync
+    syncMessageToFirestore(newMsg);
 
     try {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -705,6 +765,40 @@ export default function App() {
       }
     } catch (e) {
       console.warn('Message send network warning:', e);
+    }
+
+    // Client-side AI Auto Reply when WebSocket/server endpoint unavailable
+    if (widgetConfig.enableAiAutoReply && (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)) {
+      setTimeout(() => {
+        const aiText = getSmartLocalAiReply(text);
+        const aiMsg: ChatMessage = {
+          id: 'msg_ai_' + Date.now(),
+          chatId: customerChatId,
+          senderRole: 'agent',
+          senderName: widgetConfig.botName || 'নোভা এআই সহকারী',
+          senderAvatar: widgetConfig.botAvatar,
+          content: aiText,
+          timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
+          readStatus: 'read',
+        };
+        setMessages((prev) => ({
+          ...prev,
+          [customerChatId]: [...(prev[customerChatId] || []), aiMsg],
+        }));
+        if (currentChat) {
+          const chatWithAiReply = {
+            ...currentChat,
+            lastMessage: aiMsg.content,
+            updatedAt: new Date().toISOString(),
+          };
+          setChats((prev) =>
+            prev.map((c) => (c.id === customerChatId ? chatWithAiReply : c))
+          );
+          syncChatToFirestore(chatWithAiReply);
+        }
+        syncMessageToFirestore(aiMsg);
+        triggerMessageNotification(widgetConfig.botName, aiMsg.content);
+      }, 1200);
     }
 
     if (currentChat) {
@@ -776,18 +870,24 @@ export default function App() {
       [chatId]: [...(prev[chatId] || []), newMsg],
     }));
 
-    setChats((prev) =>
-      prev.map((c) =>
-        c.id === chatId
-          ? {
-              ...c,
-              lastMessage: isInternalNote ? c.lastMessage : text,
-              updatedAt: new Date().toISOString(),
-              unreadCountCustomer: isInternalNote ? c.unreadCountCustomer : c.unreadCountCustomer + 1,
-            }
-          : c
-      )
-    );
+    const updatedChat = currentChat
+      ? {
+          ...currentChat,
+          lastMessage: isInternalNote ? currentChat.lastMessage : text,
+          updatedAt: new Date().toISOString(),
+          unreadCountCustomer: isInternalNote ? currentChat.unreadCountCustomer : currentChat.unreadCountCustomer + 1,
+        }
+      : null;
+
+    if (updatedChat) {
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? updatedChat : c))
+      );
+      syncChatToFirestore(updatedChat);
+    }
+
+    // Direct Firestore Sync
+    syncMessageToFirestore(newMsg);
 
     try {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -854,18 +954,24 @@ export default function App() {
       [selectedChatId]: [...(prev[selectedChatId] || []), newMsg],
     }));
 
-    setChats((prev) =>
-      prev.map((c) =>
-        c.id === selectedChatId
-          ? {
-              ...c,
-              lastMessage: isInternalNote ? c.lastMessage : text,
-              updatedAt: new Date().toISOString(),
-              unreadCountCustomer: isInternalNote ? c.unreadCountCustomer : c.unreadCountCustomer + 1,
-            }
-          : c
-      )
-    );
+    const updatedChat = currentChat
+      ? {
+          ...currentChat,
+          lastMessage: isInternalNote ? currentChat.lastMessage : text,
+          updatedAt: new Date().toISOString(),
+          unreadCountCustomer: isInternalNote ? currentChat.unreadCountCustomer : currentChat.unreadCountCustomer + 1,
+        }
+      : null;
+
+    if (updatedChat) {
+      setChats((prev) =>
+        prev.map((c) => (c.id === selectedChatId ? updatedChat : c))
+      );
+      syncChatToFirestore(updatedChat);
+    }
+
+    // Direct Firestore Sync
+    syncMessageToFirestore(newMsg);
 
     try {
       await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/messages`, {
@@ -928,7 +1034,14 @@ export default function App() {
     if (!ag) return;
 
     setChats((prev) =>
-      prev.map((c) => (c.id === chatId ? { ...c, assignedAgent: ag } : c))
+      prev.map((c) => {
+        if (c.id === chatId) {
+          const updated = { ...c, assignedAgent: ag, assignedAgentId: ag.id };
+          syncChatToFirestore(updated);
+          return updated;
+        }
+        return c;
+      })
     );
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -946,7 +1059,14 @@ export default function App() {
 
   const handleChangeStatus = (chatId: string, status: any) => {
     setChats((prev) =>
-      prev.map((c) => (c.id === chatId ? { ...c, status } : c))
+      prev.map((c) => {
+        if (c.id === chatId) {
+          const updated = { ...c, status };
+          syncChatToFirestore(updated);
+          return updated;
+        }
+        return c;
+      })
     );
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -962,7 +1082,14 @@ export default function App() {
 
   const handleToggleStar = async (chatId: string) => {
     setChats((prev) =>
-      prev.map((c) => (c.id === chatId ? { ...c, isStarred: !c.isStarred } : c))
+      prev.map((c) => {
+        if (c.id === chatId) {
+          const updated = { ...c, isStarred: !c.isStarred };
+          syncChatToFirestore(updated);
+          return updated;
+        }
+        return c;
+      })
     );
     try {
       await fetch(`/api/chats/${chatId}`, {
@@ -975,15 +1102,18 @@ export default function App() {
 
   const handleUpdateCustomerMeta = async (chatId: string, updates: { notes?: string; tags?: string[] }) => {
     setChats((prev) =>
-      prev.map((c) =>
-        c.id === chatId
-          ? {
-              ...c,
-              notes: updates.notes !== undefined ? updates.notes : c.notes,
-              tags: updates.tags !== undefined ? updates.tags : c.tags,
-            }
-          : c
-      )
+      prev.map((c) => {
+        if (c.id === chatId) {
+          const updated = {
+            ...c,
+            notes: updates.notes !== undefined ? updates.notes : c.notes,
+            tags: updates.tags !== undefined ? updates.tags : c.tags,
+          };
+          syncChatToFirestore(updated);
+          return updated;
+        }
+        return c;
+      })
     );
     try {
       await fetch(`/api/chats/${chatId}`, {
@@ -997,6 +1127,7 @@ export default function App() {
   const handleDeleteChat = async (chatId: string) => {
     setChats((prev) => prev.filter((c) => c.id !== chatId));
     if (selectedChatId === chatId) setSelectedChatId(null);
+    deleteChatFromFirestore(chatId);
     try {
       await fetch(`/api/chats/${chatId}`, { method: 'DELETE' });
     } catch (e) {}
@@ -1057,14 +1188,19 @@ export default function App() {
   };
 
   const handleSaveSettings = async (updated: Partial<WidgetConfig>) => {
-    const res = await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated),
-    });
-    if (res.ok) {
-      setWidgetConfig(await res.json());
-    }
+    const merged = { ...widgetConfig, ...updated };
+    setWidgetConfig(merged);
+    syncWidgetConfigToFirestore(merged);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      if (res.ok) {
+        setWidgetConfig(await res.json());
+      }
+    } catch (e) {}
   };
 
   const handleAddAgent = (newAgentData: Omit<Agent, 'id'>) => {
