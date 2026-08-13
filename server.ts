@@ -52,9 +52,19 @@ let blockedUsers: BlockedUser[] = [];
 let adminUsers: AdminUser[] = [
   {
     id: 'user_admin_1',
+    username: 'saju2470',
+    password: '20203494aa',
+    name: 'সাজু (Super Admin)',
+    role: 'Super Admin',
+    email: 'saju2470@admin.bd',
+    department: 'ম্যানেজমেন্ট (Management)',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'user_admin_legacy',
     username: 'admin',
-    password: 'admin123',
-    name: 'প্রধান অ্যাডমিন (Chief Admin)',
+    password: '20203494aa',
+    name: 'এডমিন (Chief Admin)',
     role: 'Super Admin',
     email: 'admin@novachat.bd',
     department: 'ম্যানেজমেন্ট (Management)',

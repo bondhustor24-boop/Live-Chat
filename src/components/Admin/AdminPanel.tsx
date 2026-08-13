@@ -225,7 +225,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Handle Login Submit
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminEmail === 'admin@novachat.com' && adminPassword === 'admin123') {
+    if ((adminEmail === 'saju2470' || adminEmail === 'admin@novachat.com' || adminEmail === 'admin') && adminPassword === '20203494aa') {
       setIsLoggedIn(true);
       localStorage.setItem('novachat_admin_auth', 'true');
       setLoginError('');
@@ -235,14 +235,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       localStorage.setItem('novachat_admin_auth', 'true');
       setLoginError('');
     } else {
-      setLoginError('ইমেইল বা পাসওয়ার্ড সঠিক নয়। ডেমো আইডি: admin@novachat.com / পাসওয়ার্ড: admin123');
+      setLoginError('ইউজারনেম বা পাসওয়ার্ড সঠিক নয়। আইডি: saju2470 / পাসওয়ার্ড: 20203494aa');
     }
   };
 
   // Quick Demo Login
   const fillDemoLogin = () => {
-    setAdminEmail('admin@novachat.com');
-    setAdminPassword('admin123');
+    setAdminEmail('saju2470');
+    setAdminPassword('20203494aa');
   };
 
   // Handle Logout
@@ -355,8 +355,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </button>
             </div>
             <div className="font-mono text-[11px] text-slate-300 space-y-0.5">
-              <p>ইমেইল: <span className="text-blue-300 font-bold">admin@novachat.com</span></p>
-              <p>পাসওয়ার্ড: <span className="text-blue-300 font-bold">admin123</span></p>
+              <p>ইউজারনেম / ইমেইল: <span className="text-blue-300 font-bold">saju2470</span></p>
+              <p>পাসওয়ার্ড: <span className="text-blue-300 font-bold">20203494aa</span></p>
             </div>
           </div>
 

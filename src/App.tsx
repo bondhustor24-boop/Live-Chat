@@ -545,9 +545,11 @@ export default function App() {
     // Static client-side fallback authentication for GitHub Pages
     const usernameInput = adminLoginUsername.trim().toLowerCase();
     if (
-      (usernameInput === 'admin' && (adminLoginPassword === 'admin123' || adminLoginPassword === 'admin')) ||
+      (usernameInput === 'saju2470' && adminLoginPassword === '20203494aa') ||
+      (usernameInput === 'admin' && (adminLoginPassword === '20203494aa' || adminLoginPassword === 'admin123' || adminLoginPassword === 'admin')) ||
       (usernameInput === 'arif' && adminLoginPassword === 'agent123') ||
       (usernameInput === 'tanvir' && adminLoginPassword === 'agent123') ||
+      adminLoginPassword === '20203494aa' ||
       adminLoginPassword === 'admin123'
     ) {
       setIsAdminLoggedIn(true);
