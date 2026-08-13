@@ -12,12 +12,17 @@ import {
   Plus,
   X,
   Mail,
-  Phone
+  Phone,
+  HeartHandshake,
+  AlertTriangle,
+  Smile
 } from 'lucide-react';
-import { ChatSession } from '../../types';
+import { ChatSession, ChatMessage } from '../../types';
+import { analyzeChatSessionSentiment } from '../../utils/sentiment';
 
 interface CustomerSidebarProps {
   chat: ChatSession | null;
+  messages?: ChatMessage[];
   onUpdateCustomerMeta: (chatId: string, updates: { notes?: string; tags?: string[] }) => void;
   onBlockUser?: (chatId: string, phone?: string, ipAddress?: string, name?: string, reason?: string) => void;
   onUnblockUser?: (id: string) => void;
@@ -26,6 +31,7 @@ interface CustomerSidebarProps {
 
 export const CustomerSidebar: React.FC<CustomerSidebarProps> = ({
   chat,
+  messages = [],
   onUpdateCustomerMeta,
   onBlockUser,
   onUnblockUser,
@@ -154,6 +160,77 @@ export const CustomerSidebar: React.FC<CustomerSidebarProps> = ({
           </p>
         )}
       </div>
+
+      {/* Customer Sentiment Analysis Card */}
+      {(() => {
+        const sentiment = analyzeChatSessionSentiment(messages, chat.lastMessage);
+        return (
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-3 shadow-2xs">
+            <div className="flex items-center justify-between border-b pb-2">
+              <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs">
+                <Smile className="w-4 h-4 text-amber-500" />
+                <span>গ্রাহকের মনোভাব (Sentiment)</span>
+              </div>
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-bold ${sentiment.badgeClass}`}>
+                {sentiment.score > 0 ? `+${sentiment.score}` : sentiment.score}
+              </span>
+            </div>
+
+            {/* Current Sentiment Badge */}
+            <div className={`p-2.5 rounded-lg border flex items-center gap-2.5 ${sentiment.badgeClass}`}>
+              <span className="text-xl shrink-0">{sentiment.emoji}</span>
+              <div className="min-w-0">
+                <div className="font-bold text-xs">{sentiment.labelBn}</div>
+                <p className="text-[10px] opacity-80">কীওয়ার্ড বেসড সেন্টিমেন্ট ডিটেকশন</p>
+              </div>
+            </div>
+
+            {/* Matched Keywords */}
+            {sentiment.matchedKeywords.length > 0 && (
+              <div className="space-y-1">
+                <span className="text-[10px] text-slate-400 font-medium">সনাক্তকৃত মূল শব্দসমূহ:</span>
+                <div className="flex flex-wrap gap-1">
+                  {sentiment.matchedKeywords.map((kw, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-mono"
+                    >
+                      "{kw}"
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Agent Action Advice Tip */}
+            <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-[11px] leading-relaxed text-slate-600">
+              <div className="font-bold text-slate-800 flex items-center gap-1 mb-0.5">
+                {sentiment.sentiment === 'frustrated' ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                ) : (
+                  <HeartHandshake className="w-3.5 h-3.5 text-emerald-500" />
+                )}
+                <span>এজেন্ট দিকনির্দেশনা:</span>
+              </div>
+              {sentiment.sentiment === 'frustrated' && (
+                <p className="text-rose-700 font-medium">
+                  গ্রাহক অসন্তুষ্ট বা ক্ষুব্ধ! বিনীতভাবে দুঃখ প্রকাশ করুন এবং দ্রুত সমস্যা সমাধানের ব্যবস্থা নিন।
+                </p>
+              )}
+              {sentiment.sentiment === 'happy' && (
+                <p className="text-emerald-700 font-medium">
+                  গ্রাহক সন্তুষ্ট আছেন। পজিটিভ ফিডব্যাক গ্রহণ করুন এবং ধন্যবাদ জানান।
+                </p>
+              )}
+              {sentiment.sentiment === 'neutral' && (
+                <p className="text-slate-600">
+                  গ্রাহক সাধারণ মনোভাব প্রকাশ করেছেন। পরিষ্কার তথ্য দিয়ে দ্রুত সহযোগিতা প্রদান করুন।
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Live Navigation & Device Metadata */}
       <div className="space-y-2.5">

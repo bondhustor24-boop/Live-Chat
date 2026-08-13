@@ -1181,6 +1181,7 @@ export default function App() {
                 }}
                 activeFilter={activeFilter}
                 setActiveFilter={setActiveFilter}
+                messagesMap={messages}
               />
             </div>
 
@@ -1203,6 +1204,7 @@ export default function App() {
 
             <CustomerSidebar
               chat={selectedChat}
+              messages={currentChatMessages}
               onUpdateCustomerMeta={handleUpdateCustomerMeta}
               onBlockUser={handleBlockUser}
               onUnblockUser={handleUnblockUser}

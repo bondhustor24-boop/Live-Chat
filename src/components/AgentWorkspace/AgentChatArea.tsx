@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { ChatSession, ChatMessage, Agent, CannedResponse } from '../../types';
 import { LoadingSpinner } from '../LoadingSpinner';
+import { analyzeTextSentiment, analyzeChatSessionSentiment } from '../../utils/sentiment';
 
 interface AgentChatAreaProps {
   chat: ChatSession | null;
@@ -130,6 +131,21 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
               <span className="font-mono text-[10px] bg-slate-900 text-amber-300 font-bold px-2 py-0.5 rounded-md border border-slate-700">
                 {chat.id}
               </span>
+              
+              {/* Sentiment Indicator Badge */}
+              {(() => {
+                const sentiment = analyzeChatSessionSentiment(messages, chat.lastMessage);
+                return (
+                  <div
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-bold transition shadow-2xs ${sentiment.badgeClass}`}
+                    title={`কীওয়ার্ড সেন্টিমেন্ট বিশ্লেষণ (স্কোর: ${sentiment.score})`}
+                  >
+                    <span>{sentiment.emoji}</span>
+                    <span>{sentiment.labelBn}</span>
+                  </div>
+                );
+              })()}
+
               <button
                 onClick={() => onToggleStar(chat.id)}
                 className="text-slate-400 hover:text-amber-400 transition"

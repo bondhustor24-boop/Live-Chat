@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Search, Star, Clock, AlertCircle, CheckCircle2, UserX, MessageSquare } from 'lucide-react';
-import { ChatSession, ChatStatus } from '../../types';
+import { Search, Star, Clock, AlertCircle, CheckCircle2, UserX, MessageSquare, Smile, Frown, Meh } from 'lucide-react';
+import { ChatSession, ChatStatus, ChatMessage } from '../../types';
+import { analyzeChatSessionSentiment } from '../../utils/sentiment';
 
 interface ConversationListProps {
   chats: ChatSession[];
   selectedChatId: string | null;
   onSelectChat: (chatId: string) => void;
-  activeFilter: 'all' | 'unassigned' | 'active' | 'waiting' | 'resolved' | 'starred';
-  setActiveFilter: (filter: 'all' | 'unassigned' | 'active' | 'waiting' | 'resolved' | 'starred') => void;
+  activeFilter: 'all' | 'unassigned' | 'active' | 'waiting' | 'resolved' | 'starred' | 'frustrated' | 'happy';
+  setActiveFilter: (filter: 'all' | 'unassigned' | 'active' | 'waiting' | 'resolved' | 'starred' | 'frustrated' | 'happy') => void;
+  messagesMap?: Record<string, ChatMessage[]>;
 }
 
 export const ConversationList: React.FC<ConversationListProps> = ({
@@ -16,6 +18,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   onSelectChat,
   activeFilter,
   setActiveFilter,
+  messagesMap,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -32,6 +35,14 @@ export const ConversationList: React.FC<ConversationListProps> = ({
 
     if (activeFilter === 'starred') return chat.isStarred;
     if (activeFilter === 'unassigned') return chat.status === 'unassigned' || !chat.assignedAgentId;
+    if (activeFilter === 'frustrated') {
+      const sentiment = analyzeChatSessionSentiment(messagesMap?.[chat.id] || [], chat.lastMessage);
+      return sentiment.sentiment === 'frustrated';
+    }
+    if (activeFilter === 'happy') {
+      const sentiment = analyzeChatSessionSentiment(messagesMap?.[chat.id] || [], chat.lastMessage);
+      return sentiment.sentiment === 'happy';
+    }
     if (activeFilter === 'all') return true;
     return chat.status === activeFilter;
   });
@@ -56,9 +67,11 @@ export const ConversationList: React.FC<ConversationListProps> = ({
         </div>
 
         {/* Tab Filters */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 text-xs">
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 text-xs no-scrollbar">
           {[
             { id: 'all', label: 'সব চ্যাট' },
+            { id: 'frustrated', label: '😠 অসন্তুষ্ট' },
+            { id: 'happy', label: '😊 সন্তুষ্ট' },
             { id: 'unassigned', label: 'অ্যাসাইন ছাড়া' },
             { id: 'active', label: 'চলতি চ্যাট' },
             { id: 'waiting', label: 'অপেক্ষমাণ' },
@@ -91,6 +104,8 @@ export const ConversationList: React.FC<ConversationListProps> = ({
           filteredChats.map((chat) => {
             const isSelected = chat.id === selectedChatId;
             const hasUnread = chat.unreadCountAgent > 0;
+            const chatMsgs = messagesMap?.[chat.id] || [];
+            const sentiment = analyzeChatSessionSentiment(chatMsgs, chat.lastMessage);
 
             return (
               <div
@@ -123,9 +138,20 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                     <span className="text-[10px] text-slate-400 shrink-0">{chat.lastMessageTime}</span>
                   </div>
 
-                  <p className="text-[10px] font-mono text-slate-600 font-bold truncate mb-1 bg-slate-100 px-1.5 py-0.5 rounded-md inline-block">
-                    🆔 {chat.id}
-                  </p>
+                  <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                    <span className="text-[10px] font-mono text-slate-600 font-bold truncate bg-slate-100 px-1.5 py-0.5 rounded-md">
+                      🆔 {chat.id}
+                    </span>
+
+                    {/* Sentiment Indicator Badge */}
+                    <span
+                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${sentiment.badgeClass}`}
+                      title={`কাস্টমার মনোভাব স্কোর: ${sentiment.score}`}
+                    >
+                      <span>{sentiment.emoji}</span>
+                      <span>{sentiment.labelEn}</span>
+                    </span>
+                  </div>
 
                   <div className="flex items-center gap-1.5 flex-wrap text-[10px] font-mono mb-1.5">
                     <span className="bg-blue-50 text-blue-700 border border-blue-200/80 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1">
