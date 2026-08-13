@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck } from 'lucide-react';
+import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2 } from 'lucide-react';
 import { ChatSession, ChatMessage, WidgetConfig } from '../../types';
 
 interface ChatWindowProps {
@@ -13,6 +13,8 @@ interface ChatWindowProps {
   onCloseWidget: () => void;
   onNewChat?: () => void;
   isTypingAgent?: string | null;
+  isFullScreen?: boolean;
+  onToggleFullScreen?: () => void;
 }
 
 const EMOJIS = ['👍', '❤️', '😊', '🎉', '👋', '🙏', '🔥', '🚀'];
@@ -27,7 +29,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onEndChat,
   onCloseWidget,
   onNewChat,
-  isTypingAgent
+  isTypingAgent,
+  isFullScreen,
+  onToggleFullScreen
 }) => {
   const [inputText, setInputText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -59,25 +63,75 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     onTyping(false);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     const file = files[0];
     const isImg = file.type.startsWith('image/');
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAttachments([
-        ...attachments,
-        {
-          name: file.name,
-          url: reader.result as string,
-          type: isImg ? 'image' : 'file',
-          size: (file.size / 1024).toFixed(1) + ' KB',
-        },
-      ]);
+
+    const processFile = (): Promise<string> => {
+      return new Promise((resolve) => {
+        if (!isImg) {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target?.result as string;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 1200;
+            const MAX_HEIGHT = 1200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height = Math.round((height * MAX_WIDTH) / width);
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width = Math.round((width * MAX_HEIGHT) / height);
+                height = MAX_HEIGHT;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              resolve(canvas.toDataURL('image/jpeg', 0.85));
+            } else {
+              resolve(event.target?.result as string);
+            }
+          };
+          img.onerror = () => resolve(event.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      });
     };
-    reader.readAsDataURL(file);
+
+    const dataUrl = await processFile();
+    setAttachments((prev) => [
+      ...prev,
+      {
+        name: file.name,
+        url: dataUrl,
+        type: isImg ? 'image' : 'file',
+        size: (file.size / 1024).toFixed(1) + ' KB',
+      },
+    ]);
+
+    e.target.value = '';
   };
 
   // Determine current active chat header profile
@@ -115,25 +169,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
-          {onNewChat && (
+          {onToggleFullScreen && (
             <button
-              onClick={onNewChat}
-              title="নতুন মোবাইল নম্বর দিয়ে নতুন চ্যাট শুরু করুন"
-              className="px-2 py-1 bg-white/20 hover:bg-white/30 text-white rounded-md text-[11px] font-semibold transition"
+              onClick={onToggleFullScreen}
+              title={isFullScreen ? "স্মল উইজেটে পরিবর্তন করুন" : "ফুল পেজ চ্যাট ভিউ"}
+              className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
             >
-              + নতুন চ্যাট
+              {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
           )}
           <button
             onClick={onEndChat}
             title="চ্যাট শেষ করুন ও রেটিং দিন"
-            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition text-xs font-medium"
+            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition text-xs font-medium cursor-pointer"
           >
             শেষ করুন
           </button>
           <button
             onClick={onCloseWidget}
-            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition"
+            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -215,14 +269,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     {msg.attachments && msg.attachments.length > 0 && (
                       <div className="mt-2 space-y-1.5">
                         {msg.attachments.map((att, idx) => (
-                          <div key={idx} className="rounded-lg overflow-hidden border border-slate-200/40">
+                          <div key={idx} className="rounded-lg overflow-hidden border border-slate-200/40 cursor-pointer hover:opacity-95 transition" onClick={() => att.type === 'image' && setPreviewImageModal(att.url)}>
                             {att.type === 'image' ? (
-                              <img src={att.url} alt={att.name} className="max-h-40 w-full object-cover" />
+                              <img src={att.url} alt={att.name} className="max-h-56 w-full object-cover rounded-lg" />
                             ) : (
-                              <div className="flex items-center gap-2 p-2 bg-slate-100/30 text-xs">
+                              <a href={att.url} download={att.name} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2 bg-slate-100/30 text-xs text-blue-600 hover:underline">
                                 <FileText className="w-4 h-4" />
-                                <span className="truncate">{att.name}</span>
-                              </div>
+                                <span className="truncate">{att.name} ({att.size || 'File'})</span>
+                              </a>
                             )}
                           </div>
                         ))}
@@ -319,9 +373,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <Smile className="w-4 h-4" />
           </button>
 
-          <label className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+          <label title="ছবি বা ফাইল সংযুক্ত করুন" className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer">
             <Paperclip className="w-4 h-4" />
-            <input type="file" onChange={handleFileUpload} className="hidden" />
+            <input type="file" accept="image/*,.pdf,.doc,.docx" onChange={handleFileUpload} className="hidden" />
           </label>
 
           <input
@@ -342,6 +396,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </button>
         </div>
       </form>
+      )}
+
+      {/* Lightbox Modal for Large Image Preview */}
+      {previewImageModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="relative max-w-2xl max-h-[90vh]">
+            <button
+              onClick={() => setPreviewImageModal(null)}
+              className="absolute -top-10 right-0 text-white bg-slate-800/80 p-1.5 rounded-full hover:bg-slate-700 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img src={previewImageModal} alt="Enlarged preview" className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl" />
+          </div>
+        </div>
       )}
 
     </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Save, Check, Palette, Bot, Sliders, FileSpreadsheet, ExternalLink, RefreshCw, AlertCircle, Copy, Download, Code, CheckCircle2 } from 'lucide-react';
+import { Settings, Save, Check, Palette, Bot, Sliders, FileSpreadsheet, ExternalLink, RefreshCw, AlertCircle, Copy, Download, Code, CheckCircle2, Bell, Send } from 'lucide-react';
 import { WidgetConfig } from '../../types';
 
 interface WidgetSettingsProps {
@@ -30,6 +30,35 @@ export const WidgetSettings: React.FC<WidgetSettingsProps> = ({ widgetConfig, on
   const [syncResult, setSyncResult] = useState<{ url?: string; count?: number; error?: string; message?: string } | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [activeSyncTab, setActiveSyncTab] = useState<'no_api' | 'csv' | 'oauth'>('no_api');
+
+  // Telegram Testing State
+  const [testingTelegram, setTestingTelegram] = useState(false);
+  const [telegramStatus, setTelegramStatus] = useState<{ success?: boolean; message?: string; error?: string } | null>(null);
+
+  const handleTestTelegram = async () => {
+    setTestingTelegram(true);
+    setTelegramStatus(null);
+    try {
+      const res = await fetch('/api/telegram/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          botToken: config.telegramBotToken,
+          chatId: config.telegramChatId,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTelegramStatus({ success: true, message: data.message });
+      } else {
+        setTelegramStatus({ error: data.error });
+      }
+    } catch (err: any) {
+      setTelegramStatus({ error: err.message || 'নেটওয়ার্ক কানেকশন সমস্যা' });
+    } finally {
+      setTestingTelegram(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -551,6 +580,99 @@ function forwardSmsToNovaAdmin(phone, message, customerName) {
                 }
                 className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none"
               />
+            </div>
+          </div>
+
+          {/* Telegram Bot Notification Settings */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <Bell className="w-4 h-4 text-blue-600" />
+                <span>টেলিগ্রাম বট নোটিফিকেশন সেটিংস (Telegram Bot Alerts)</span>
+              </h3>
+              <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
+                ইনস্ট্যান্ট এসএমএস নোটিফিকেশন
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              নতুন কোনো কাস্টমার ওয়েবসাইট চ্যাটে বার্তা পাঠালে বা চ্যাট শুরু করলে সাথে সাথে আপনার টেলিগ্রাম গ্রুপ বা চ্যাটে অটোমেটিক ইনস্ট্যান্ট অ্যালার্ট নোটিফিকেশন মেসেজ চলে যাবে।
+            </p>
+
+            <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-800">
+              <input
+                type="checkbox"
+                checked={config.telegramNotificationsEnabled ?? true}
+                onChange={(e) => setConfig({ ...config, telegramNotificationsEnabled: e.target.checked })}
+                className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+              />
+              <span>নতুন কাস্টমার মেসেজে টেলিগ্রাম নোটিফিকেশন অ্যালার্ট চালু রাখুন</span>
+            </label>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div>
+                <label className="block font-semibold text-xs text-slate-700 mb-1">
+                  Telegram Bot Token
+                </label>
+                <input
+                  type="text"
+                  placeholder="যেমন: 123456789:ABCdefGhIJK..."
+                  value={config.telegramBotToken || ''}
+                  onChange={(e) => setConfig({ ...config, telegramBotToken: e.target.value.trim() })}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none text-xs font-mono"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  টেলিগ্রামে <b>@BotFather</b> দিয়ে বট তৈরি করে বটের API Token এখানে দিন।
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-xs text-slate-700 mb-1">
+                  Telegram Chat ID / Group ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="যেমন: 987654321 বা -100123456789"
+                  value={config.telegramChatId || ''}
+                  onChange={(e) => setConfig({ ...config, telegramChatId: e.target.value.trim() })}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none text-xs font-mono"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  <b>@userinfobot</b> বা গ্রুপে বট অ্যাড করে গ্রুপের Chat ID পাবেন।
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleTestTelegram}
+                disabled={testingTelegram}
+                className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl transition border border-blue-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {testingTelegram ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                ) : (
+                  <Send className="w-3.5 h-3.5 text-blue-600" />
+                )}
+                <span>টেস্ট নোটিফিকেশন পাঠান</span>
+              </button>
+
+              {telegramStatus && (
+                <div className="text-xs font-semibold">
+                  {telegramStatus.success ? (
+                    <span className="text-emerald-600 flex items-center gap-1">
+                      <CheckCircle2 className="w-4 h-4" />
+                      {telegramStatus.message}
+                    </span>
+                  ) : (
+                    <span className="text-rose-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {telegramStatus.error}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

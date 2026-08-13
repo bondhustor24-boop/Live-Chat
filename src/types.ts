@@ -133,4 +133,7 @@ export interface WidgetConfig {
   departments: string[];
   appsScriptUrl?: string;
   websiteUrl?: string;
+  telegramBotToken?: string;
+  telegramChatId?: string;
+  telegramNotificationsEnabled?: boolean;
 }

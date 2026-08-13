@@ -181,6 +181,53 @@ async function sendInstantGoogleSheetSync(chat: ChatSession, message: ChatMessag
   }
 }
 
+// Telegram Bot Notification Helper
+async function sendTelegramNotification(chat: ChatSession, messageContent: string, isNewChat = false) {
+  if (widgetConfig.telegramNotificationsEnabled === false) return;
+
+  const botToken = widgetConfig.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = widgetConfig.telegramChatId || process.env.TELEGRAM_CHAT_ID;
+
+  if (!botToken || !chatId) {
+    return;
+  }
+
+  const escapeHtml = (str: string) =>
+    (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const header = isNewChat ? '🆕 <b>নতুন ভিজিটর চ্যাট শুরু করেছেন!</b>' : '📩 <b>নতুন কাস্টমার মেসেজ এসেছে!</b>';
+
+  const text = `${header}
+
+👤 <b>নাম:</b> ${escapeHtml(chat.customer.name || 'Visitor')}
+📱 <b>ফোন:</b> ${escapeHtml(chat.customer.phone || 'N/A')}
+📧 <b>ইমেইল:</b> ${escapeHtml(chat.customer.email || 'N/A')}
+🏢 <b>ডিপার্টমেন্ট:</b> ${escapeHtml(chat.department || 'General')}
+💬 <b>মেসেজ:</b> ${escapeHtml(messageContent)}
+🌐 <b>আইপি:</b> ${escapeHtml(chat.customer.ipAddress || 'N/A')}
+⏰ <b>সময়:</b> ${new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}`;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML',
+      }),
+    });
+    const result = await res.json();
+    if (!result.ok) {
+      console.error('Telegram API error response:', result);
+    } else {
+      console.log('Telegram notification sent successfully to', chatId);
+    }
+  } catch (err) {
+    console.error('Failed to send Telegram notification:', err);
+  }
+}
+
 // Gemini AI Client setup
 let aiClient: GoogleGenAI | null = null;
 
@@ -751,6 +798,9 @@ app.post('/api/chats', (req, res) => {
   // ⚡ Instant 1-Second Google Sheet Save
   sendInstantGoogleSheetSync(newChat, initialMsg);
 
+  // 🤖 Telegram Bot Notification
+  sendTelegramNotification(newChat, initialMessage || 'লাইভ চ্যাট শুরু করেছেন', true);
+
   // Check AI Auto reply
   if (widgetConfig.enableAiAutoReply) {
     triggerAiAutoReply(newChatId, initialMessage || 'Hello');
@@ -847,6 +897,11 @@ app.post('/api/chats/:id/messages', (req, res) => {
 
   // Sync to Google Sheet
   sendInstantGoogleSheetSync(targetChat, newMessage);
+
+  // Send Telegram Notification if message is from customer
+  if (senderRole === 'customer') {
+    sendTelegramNotification(targetChat, newMessage.content, false);
+  }
 
   // Check AI Auto Reply if enabled
   if (
@@ -1135,6 +1190,44 @@ app.post('/api/settings', (req, res) => {
   syncWidgetConfigToFirestore(widgetConfig);
   broadcast({ type: 'settings_updated', widgetConfig });
   res.json(widgetConfig);
+});
+
+// POST Test Telegram Notification
+app.post('/api/telegram/test', async (req, res) => {
+  const { botToken, chatId } = req.body;
+  const token = botToken || widgetConfig.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
+  const targetChatId = chatId || widgetConfig.telegramChatId || process.env.TELEGRAM_CHAT_ID;
+
+  if (!token || !targetChatId) {
+    return res.status(400).json({
+      error: 'অনুগ্রহ করে Telegram Bot Token এবং Chat ID সেট করুন।',
+    });
+  }
+
+  try {
+    const testText = `🤖 <b>নোভা চ্যাট টেলিগ্রাম বটের টেস্ট মেসেজ</b>\n\n✅ আপনার টেলিগ্রাম বট নোটিফিকেশন সফলভাবে কানেক্ট হয়েছে!\nএখন থেকে নতুন কোনো ভিজিটর ওয়েবসাইট চ্যাটে বার্তা পাঠালে সাথে সাথে এখানে অ্যালার্ট যাবে।\n\n⏰ সময়: ${new Date().toLocaleString('bn-BD')}`;
+
+    const tgRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: targetChatId,
+        text: testText,
+        parse_mode: 'HTML',
+      }),
+    });
+
+    const data = await tgRes.json();
+    if (data.ok) {
+      return res.json({ success: true, message: 'টেস্ট মেসেজ সফলভাবে টেলিগ্রামে পাঠানো হয়েছে!' });
+    } else {
+      return res.status(400).json({
+        error: `টেলিগ্রাম বার্তা পাঠাতে সমস্যা হয়েছে: ${data.description || 'বট টোকেন বা চ্যাট আইডি যাচাই করুন'}`,
+      });
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: `সার্ভার ত্রুটি: ${err.message}` });
+  }
 });
 
 // AI COPILOT API ROUTES
