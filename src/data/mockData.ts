@@ -87,7 +87,7 @@ export const INITIAL_LIVE_VISITORS: LiveVisitor[] = [
     location: 'ঢাকা, বাংলাদেশ',
     currentPage: '/pricing',
     timeOnPage: '৪ মিনিট ১২ সেকেন্ড',
-    device: 'Chrome / Windows',
+    device: 'Chrome / Windows 11',
     ip: '103.205.132.42',
     referrer: 'Google Search',
     status: 'browsing'
@@ -103,6 +103,54 @@ export const INITIAL_LIVE_VISITORS: LiveVisitor[] = [
     ip: '118.179.22.10',
     referrer: 'Direct Link',
     status: 'browsing'
+  },
+  {
+    id: 'vis_103',
+    name: 'তানভীর আহমেদ',
+    email: 'tanvir@gmail.com',
+    location: 'সিলেট, বাংলাদেশ',
+    currentPage: '/features',
+    timeOnPage: '১ মিনিট ১৫ সেকেন্ড',
+    device: 'Chrome / Android',
+    ip: '103.112.54.18',
+    referrer: 'Facebook Ads',
+    status: 'browsing'
+  },
+  {
+    id: 'vis_104',
+    name: 'David Smith',
+    email: 'david.smith@techcorp.io',
+    location: 'London, UK',
+    currentPage: '/enterprise',
+    timeOnPage: '৬ মিনিট ৫০ সেকেন্ড',
+    device: 'Firefox / macOS',
+    ip: '82.165.197.1',
+    referrer: 'LinkedIn',
+    status: 'in_chat'
+  },
+  {
+    id: 'vis_105',
+    name: 'Sarah Jenkins',
+    email: 'sarah.j@gmail.com',
+    location: 'New York, USA',
+    currentPage: '/demo',
+    timeOnPage: '৩ মিনিট ১০ সেকেন্ড',
+    device: 'Edge / Windows 10',
+    ip: '198.51.100.45',
+    referrer: 'Google Search',
+    status: 'browsing'
+  },
+  {
+    id: 'vis_106',
+    name: 'জাহিদ হোসেন',
+    email: 'zahid.uae@hotmail.com',
+    location: 'Dubai, UAE',
+    currentPage: '/support',
+    timeOnPage: '৫ মিনিট ২০ সেকেন্ড',
+    device: 'Chrome / iPad OS',
+    ip: '185.120.12.9',
+    referrer: 'Direct Link',
+    status: 'invited'
   }
 ];
 
