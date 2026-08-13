@@ -1418,7 +1418,7 @@ export default function App() {
         {/* Tab 1: Customer Storefront Preview */}
         {activeTab === 'widget_preview' && !isAdminLoggedIn && (
           <div className="flex-1 flex overflow-hidden relative">
-            <StorefrontPreview />
+            <StorefrontPreview widgetConfig={widgetConfig} />
 
             {/* Floating Live Chat Widget */}
             <CustomerChatWidget
