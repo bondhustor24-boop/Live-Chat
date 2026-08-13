@@ -33,6 +33,8 @@ import {
   syncChatToFirestore,
   syncMessageToFirestore,
   syncTypingStatusToFirestore,
+  syncBlockedUserToFirestore,
+  deleteBlockedUserFromFirestore,
   deleteChatFromFirestore,
   syncWidgetConfigToFirestore,
   loadFirestoreData,
@@ -291,6 +293,11 @@ export default function App() {
             setIsTypingAgent(isTyping ? (senderName || 'এজেন্ট') : null);
           }
         }
+      },
+      (firestoreBlocked) => {
+        if (firestoreBlocked) {
+          setBlockedUsers(firestoreBlocked);
+        }
       }
     );
 
@@ -305,6 +312,9 @@ export default function App() {
         }
         if (data.widgetConfig) {
           setWidgetConfig(data.widgetConfig);
+        }
+        if (data.blockedUsers && data.blockedUsers.length > 0) {
+          setBlockedUsers(data.blockedUsers);
         }
       }
     });
@@ -422,6 +432,35 @@ export default function App() {
   };
 
   const handleBlockUser = async (chatId: string, phone?: string, ipAddress?: string, name?: string, reason?: string) => {
+    const blockItem: BlockedUser = {
+      id: `block_${Date.now()}`,
+      chatId: chatId || 'N/A',
+      phone: phone || '',
+      ipAddress: ipAddress || '',
+      reason: reason || 'এডমিন দ্বারা ব্লকড',
+      blockedAt: new Date().toISOString(),
+    };
+
+    // Update blockedUsers local state and sync to Firestore
+    setBlockedUsers((prev) => {
+      const exists = prev.some((b) => b.chatId === chatId || (b.phone && b.phone === phone));
+      if (exists) return prev;
+      return [blockItem, ...prev];
+    });
+    syncBlockedUserToFirestore(blockItem);
+
+    // Update isBlocked on chats and sync chat to Firestore
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id === chatId || (phone && c.customer.phone === phone)) {
+          const updated = { ...c, isBlocked: true, status: 'closed' as const };
+          syncChatToFirestore(updated);
+          return updated;
+        }
+        return c;
+      })
+    );
+
     try {
       const res = await fetch('/api/blocked-users', {
         method: 'POST',
@@ -431,15 +470,33 @@ export default function App() {
       if (res.ok) {
         const updated = await res.json();
         setBlockedUsers(updated);
-        const chatsRes = await fetch('/api/chats');
-        if (chatsRes.ok) setChats(await chatsRes.json());
       }
     } catch (err) {
-      console.error('Failed to block user:', err);
+      console.warn('REST block user fallback to Firestore:', err);
     }
   };
 
   const handleUnblockUser = async (id: string) => {
+    const item = blockedUsers.find((b) => b.id === id || b.chatId === id);
+    const targetChatId = item?.chatId || id;
+    const targetPhone = item?.phone;
+
+    setBlockedUsers((prev) => prev.filter((b) => b.id !== id && b.chatId !== id));
+    deleteBlockedUserFromFirestore(id);
+    if (item && item.id) deleteBlockedUserFromFirestore(item.id);
+
+    // Unblock chat in chats array and sync chat to Firestore
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id === targetChatId || (targetPhone && c.customer.phone === targetPhone)) {
+          const updated = { ...c, isBlocked: false, status: 'active' as const };
+          syncChatToFirestore(updated);
+          return updated;
+        }
+        return c;
+      })
+    );
+
     try {
       const res = await fetch(`/api/blocked-users/${encodeURIComponent(id)}`, {
         method: 'DELETE',
@@ -447,11 +504,9 @@ export default function App() {
       if (res.ok) {
         const updated = await res.json();
         setBlockedUsers(updated);
-        const chatsRes = await fetch('/api/chats');
-        if (chatsRes.ok) setChats(await chatsRes.json());
       }
     } catch (err) {
-      console.error('Failed to unblock user:', err);
+      console.warn('REST unblock user fallback to Firestore:', err);
     }
   };
 
@@ -1475,6 +1530,7 @@ export default function App() {
             onAssignAgent={handleAssignAgent}
             onBlockUser={handleBlockUser}
             onUnblockUser={handleUnblockUser}
+            onStartNewChat={handleStartCustomerChat}
           />
         )}
       </main>

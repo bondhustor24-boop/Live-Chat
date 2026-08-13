@@ -27,7 +27,9 @@ import {
   Phone,
   Globe,
   Tag,
-  Clock
+  Clock,
+  X,
+  Ban
 } from 'lucide-react';
 import { Agent, ChatSession, ChatMessage, WidgetConfig, BlockedUser, AdminUser } from '../../types';
 import { CODE_GS_SCRIPT } from './CodeGsModal';
@@ -49,6 +51,7 @@ interface AdminPanelProps {
   onAssignAgent?: (chatId: string, agentId: string) => void;
   onBlockUser?: (chatId: string, phone?: string, ipAddress?: string, name?: string, reason?: string) => void;
   onUnblockUser?: (id: string) => void;
+  onStartNewChat?: (data: { customerName: string; customerPhone?: string; customerEmail: string; department: string; subject: string; initialMessage: string }) => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -66,7 +69,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onChangeStatus,
   onAssignAgent,
   onBlockUser,
-  onUnblockUser
+  onUnblockUser,
+  onStartNewChat,
 }) => {
   // Authentication State
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -184,6 +188,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [adminMessageText, setAdminMessageText] = useState<string>('');
   const [adminIsNote, setAdminIsNote] = useState<boolean>(false);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
+
+  // New Chat Modal State
+  const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+  const [newCustName, setNewCustName] = useState('');
+  const [newCustPhone, setNewCustPhone] = useState('');
+  const [newCustEmail, setNewCustEmail] = useState('');
+  const [newCustDept, setNewCustDept] = useState('সাধারণ জিজ্ঞাসা');
+  const [newCustSubject, setNewCustSubject] = useState('অ্যাডমিন প্যানেল চ্যাট টিকিট');
+  const [newCustMessage, setNewCustMessage] = useState('');
 
   useEffect(() => {
     if (adminTab === 'live_chat') {
@@ -704,6 +717,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <MessageSquare className="w-4 h-4 text-blue-600" />
                       <span>কাস্টমার তালিকা ({filteredChats.length})</span>
                     </h3>
+                    <button
+                      onClick={() => setIsNewChatModalOpen(true)}
+                      className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                      title="নতুন চ্যাট টিকিট যোগ করুন"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>নতুন চ্যাট</span>
+                    </button>
                   </div>
                   <div className="relative">
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
@@ -798,7 +819,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-xs flex-wrap">
                       <span className="text-slate-500">স্ট্যাটাস:</span>
                       <select
                         value={activeChatSession.status}
@@ -807,8 +828,60 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       >
                         <option value="active">অনলাইন (Active)</option>
                         <option value="unassigned">অপেক্ষমাণ (Unassigned)</option>
-                        <option value="resolved">সমাধানকৃত (Resolved)</option>
+                        <option value="resolved">সমাধানকৃত/ক্লোজড (Resolved)</option>
+                        <option value="closed">বন্ধ (Closed)</option>
                       </select>
+
+                      {/* Close Chat Button */}
+                      {activeChatSession.status !== 'resolved' && activeChatSession.status !== 'closed' ? (
+                        <button
+                          onClick={() => onChangeStatus && onChangeStatus(activeChatSession.id, 'resolved')}
+                          className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                          title="চ্যাট সমাপন করুন (Close Chat)"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>ক্লোজ করুন</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onChangeStatus && onChangeStatus(activeChatSession.id, 'active')}
+                          className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                          title="চ্যাট পুনরায় ওপেন করুন"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>পুনরায় ওপেন</span>
+                        </button>
+                      )}
+
+                      {/* Block / Unblock User Button */}
+                      {activeChatSession.isBlocked ? (
+                        <button
+                          onClick={() => onUnblockUser && onUnblockUser(activeChatSession.id)}
+                          className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                          title="ইউজার আনব্লক করুন"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>আনব্লক</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            onBlockUser &&
+                            onBlockUser(
+                              activeChatSession.id,
+                              activeChatSession.customer.phone,
+                              activeChatSession.customer.ipAddress,
+                              activeChatSession.customer.name,
+                              'লাইভ চ্যাট উইন্ডো থেকে ব্লক করা হয়েছে'
+                            )
+                          }
+                          className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                          title="এই গ্রাহককে ব্লকলিস্টে যোগ করুন"
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                          <span>ব্লক</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1726,6 +1799,145 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
 
+            </div>
+          </div>
+        )}
+
+        {/* New Chat Creation Modal */}
+        {isNewChatModalOpen && (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 relative">
+              <button
+                onClick={() => setIsNewChatModalOpen(false)}
+                className="absolute top-4 right-4 p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                  <Plus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">নতুন চ্যাট শুরু করুন (Add Chat)</h3>
+                  <p className="text-xs text-slate-500">এডমিন প্যানেল থেকে নতুন গ্রাহকের চ্যাট টিকিট তৈরি করুন</p>
+                </div>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newCustName.trim() || !newCustMessage.trim()) {
+                    alert('অনুগ্রহ করে কাস্টমার নাম এবং প্রথম মেসেজ লিখুন।');
+                    return;
+                  }
+                  if (onStartNewChat) {
+                    onStartNewChat({
+                      customerName: newCustName.trim(),
+                      customerPhone: newCustPhone.trim(),
+                      customerEmail: newCustEmail.trim() || `${Date.now()}@example.com`,
+                      department: newCustDept,
+                      subject: newCustSubject,
+                      initialMessage: newCustMessage.trim(),
+                    });
+                  }
+                  setIsNewChatModalOpen(false);
+                  setNewCustName('');
+                  setNewCustPhone('');
+                  setNewCustEmail('');
+                  setNewCustMessage('');
+                }}
+                className="space-y-3"
+              >
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">কাস্টমার নাম *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newCustName}
+                    onChange={(e) => setNewCustName(e.target.value)}
+                    placeholder="যেমন: রহিম আহমেদ"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">ফোন নম্বর</label>
+                    <input
+                      type="text"
+                      value={newCustPhone}
+                      onChange={(e) => setNewCustPhone(e.target.value)}
+                      placeholder="যেমন: 01712345678"
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">ডিপার্টমেন্ট</label>
+                    <select
+                      value={newCustDept}
+                      onChange={(e) => setNewCustDept(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="সাধারণ জিজ্ঞাসা">সাধারণ জিজ্ঞাসা</option>
+                      <option value="টেকনিক্যাল সাপোর্ট">টেকনিক্যাল সাপোর্ট</option>
+                      <option value="সেলস ও মার্কেটিং">সেলস ও মার্কেটিং</option>
+                      <option value="বিলিং ও পেমেন্ট">বিলিং ও পেমেন্ট</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">ইমেইল এড্রেস</label>
+                  <input
+                    type="email"
+                    value={newCustEmail}
+                    onChange={(e) => setNewCustEmail(e.target.value)}
+                    placeholder="যেমন: customer@example.com"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">বিষয় (Subject)</label>
+                  <input
+                    type="text"
+                    value={newCustSubject}
+                    onChange={(e) => setNewCustSubject(e.target.value)}
+                    placeholder="বিষয় লিখুন..."
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">মেসেজ/জিজ্ঞাসা *</label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={newCustMessage}
+                    onChange={(e) => setNewCustMessage(e.target.value)}
+                    placeholder="কাস্টমারের প্রথম মেসেজ বা সমস্যাটি লিখুন..."
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsNewChatModalOpen(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
+                  >
+                    বাতিল
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>চ্যাট শুরু করুন</span>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

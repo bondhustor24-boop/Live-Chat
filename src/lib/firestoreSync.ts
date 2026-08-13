@@ -58,6 +58,29 @@ const CHATS_COL = 'chats';
 const MESSAGES_COL = 'messages';
 const SETTINGS_COL = 'settings';
 const TYPING_COL = 'typing_status';
+const BLOCKED_COL = 'blocked_users';
+
+// Save or Update Blocked User in Firestore
+export async function syncBlockedUserToFirestore(blockedUser: any) {
+  if (!blockedUser || !blockedUser.id) return;
+  try {
+    const docRef = doc(db, BLOCKED_COL, blockedUser.id);
+    await setDoc(docRef, JSON.parse(JSON.stringify(blockedUser)), { merge: true });
+  } catch (err) {
+    console.error('Error syncing blocked user to Firestore:', err);
+  }
+}
+
+// Remove Blocked User from Firestore
+export async function deleteBlockedUserFromFirestore(id: string) {
+  if (!id) return;
+  try {
+    const docRef = doc(db, BLOCKED_COL, id);
+    await deleteDoc(docRef);
+  } catch (err) {
+    console.error('Error deleting blocked user from Firestore:', err);
+  }
+}
 
 // Save or Update Typing Status in Firestore
 export async function syncTypingStatusToFirestore(chatId: string, senderRole: 'customer' | 'agent', isTyping: boolean, senderName?: string) {
@@ -139,6 +162,7 @@ export async function loadFirestoreData() {
     const chatsSnap = await getDocs(collection(db, CHATS_COL));
     const messagesSnap = await getDocs(collection(db, MESSAGES_COL));
     const settingsSnap = await getDocs(collection(db, SETTINGS_COL));
+    const blockedSnap = await getDocs(collection(db, BLOCKED_COL));
 
     const loadedChats: any[] = [];
     chatsSnap.forEach((docSnap) => {
@@ -170,10 +194,16 @@ export async function loadFirestoreData() {
       }
     });
 
+    const loadedBlocked: any[] = [];
+    blockedSnap.forEach((docSnap) => {
+      loadedBlocked.push(docSnap.data());
+    });
+
     return {
       chats: loadedChats,
       messages: loadedMessages,
       widgetConfig: loadedConfig,
+      blockedUsers: loadedBlocked,
     };
   } catch (err) {
     console.error('Error loading data from Firestore:', err);
@@ -185,11 +215,13 @@ export async function loadFirestoreData() {
 export function setupFirestoreRealtimeListeners(
   onChatsUpdate: (chats: any[]) => void,
   onMessagesUpdate: (messagesMap: Record<string, any[]>) => void,
-  onTypingUpdate?: (chatId: string, senderRole: 'customer' | 'agent', isTyping: boolean, senderName?: string) => void
+  onTypingUpdate?: (chatId: string, senderRole: 'customer' | 'agent', isTyping: boolean, senderName?: string) => void,
+  onBlockedUsersUpdate?: (blockedUsers: any[]) => void
 ) {
   let unsubscribeChats: (() => void) | null = null;
   let unsubscribeMessages: (() => void) | null = null;
   let unsubscribeTyping: (() => void) | null = null;
+  let unsubscribeBlocked: (() => void) | null = null;
 
   const listenChats = () => {
     try {
@@ -289,7 +321,33 @@ export function setupFirestoreRealtimeListeners(
     }
   };
 
+  const listenBlocked = () => {
+    if (!onBlockedUsersUpdate) return;
+    try {
+      if (unsubscribeBlocked) {
+        try { unsubscribeBlocked(); } catch (e) {}
+      }
+      unsubscribeBlocked = onSnapshot(
+        collection(db, BLOCKED_COL),
+        (snapshot) => {
+          const blockedList: any[] = [];
+          snapshot.forEach((d) => blockedList.push(d.data()));
+          onBlockedUsersUpdate(blockedList);
+        },
+        (error) => {
+          console.log('Firestore blocked users listener idle/reconnect event:', error.message || error);
+          setTimeout(() => {
+            listenBlocked();
+          }, 2000);
+        }
+      );
+    } catch (e) {
+      console.warn('Error initiating blocked listener:', e);
+    }
+  };
+
   listenChats();
   listenMessages();
   listenTyping();
+  listenBlocked();
 }
