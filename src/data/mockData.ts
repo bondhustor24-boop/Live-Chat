@@ -46,8 +46,8 @@ export const INITIAL_WIDGET_CONFIG: WidgetConfig = {
   departments: ['গ্রাহক সহায়তা (Customer Support)', 'কারিগরি সেলস (Technical Sales)', 'বিলিং ও পেমেন্ট (Billing)', 'সাধারণ জিজ্ঞাসা (General)'],
   appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwc3JsSAxjiMaln2A713d9TT0NZ3YQGIebEXrXIu8AgeLUGOWNMoJar_PihP2laJvFr/exec',
   websiteUrl: 'https://live-chat-swart-nine.vercel.app/',
-  telegramBotToken: '',
-  telegramChatId: '',
+  telegramBotToken: '8861406019:AAHhY47ahk7DS495Ly1eLsa0tYZikFQ86f0',
+  telegramChatId: '6081054558',
   telegramNotificationsEnabled: true
 };
 

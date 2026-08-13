@@ -185,8 +185,8 @@ async function sendInstantGoogleSheetSync(chat: ChatSession, message: ChatMessag
 async function sendTelegramNotification(chat: ChatSession, messageContent: string, isNewChat = false) {
   if (widgetConfig.telegramNotificationsEnabled === false) return;
 
-  const botToken = widgetConfig.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = widgetConfig.telegramChatId || process.env.TELEGRAM_CHAT_ID;
+  const botToken = widgetConfig.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN || '8861406019:AAHhY47ahk7DS495Ly1eLsa0tYZikFQ86f0';
+  const chatId = widgetConfig.telegramChatId || process.env.TELEGRAM_CHAT_ID || '6081054558';
 
   if (!botToken || !chatId) {
     return;
@@ -198,9 +198,15 @@ async function sendTelegramNotification(chat: ChatSession, messageContent: strin
   const adminLink = widgetConfig.websiteUrl || 'https://live-chat-swart-nine.vercel.app/';
   const displayMsg = messageContent.trim() || '📷 [ছবি/ফাইল পাঠিয়েছেন]';
 
-  const header = isNewChat
+  const isReportForm = messageContent.includes('রিপোর্ট') || messageContent.includes('অভিযোগ');
+
+  let header = isNewChat
     ? `🆕 <b><a href="${adminLink}">নতুন ভিজিটর চ্যাট শুরু করেছেন (লাইভ চ্যাট লিঙ্ক)</a></b>`
     : `📩 <b><a href="${adminLink}">নতুন কাস্টমার মেসেজ এসেছে (লাইভ চ্যাট লিঙ্ক)</a></b>`;
+
+  if (isReportForm && !isNewChat) {
+    header = `🚨 <b><a href="${adminLink}">নতুন রিপোর্ট/অভিযোগ জমা পড়েছে! (লাইভ চ্যাট লিঙ্ক)</a></b>`;
+  }
 
   const text = `${header}
 
@@ -208,11 +214,13 @@ async function sendTelegramNotification(chat: ChatSession, messageContent: strin
 📱 <b>ফোন:</b> ${escapeHtml(chat.customer.phone || 'N/A')}
 📧 <b>ইমেইল:</b> ${escapeHtml(chat.customer.email || 'N/A')}
 🏢 <b>ডিপার্টমেন্ট:</b> ${escapeHtml(chat.department || 'General')}
-💬 <b>মেসেজ:</b> ${escapeHtml(displayMsg)}
+💬 <b>মেসেজ/রিপোর্ট:</b>
+${escapeHtml(displayMsg)}
+
 🌐 <b>আইপি:</b> ${escapeHtml(chat.customer.ipAddress || 'N/A')}
 ⏰ <b>সময়:</b> ${new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
 
-🔗 <b><a href="${adminLink}">মেসেজের উত্তর দিতে এখানে ক্লিক করে লাইভ চ্যাট ড্যাশবোর্ডে ঢুকুন</a></b>`;
+🔗 <b><a href="${adminLink}">উত্তর দিতে এখানে ক্লিক করে লাইভ চ্যাট ড্যাশবোর্ডে ঢুকুন</a></b>`;
 
   try {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {

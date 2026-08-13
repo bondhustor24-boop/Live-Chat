@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2 } from 'lucide-react';
+import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2, ClipboardList, ExternalLink, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { ChatSession, ChatMessage, WidgetConfig } from '../../types';
 
 interface ChatWindowProps {
@@ -64,6 +64,92 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
+
+  // Report Form Modal States
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportSubject, setReportSubject] = useState('পণ্য বা সার্ভিস সংক্রান্ত অভিযোগ');
+  const [reportOrderRef, setReportOrderRef] = useState('');
+  const [reportPhone, setReportPhone] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState<string | null>(null);
+
+  const handleSubmitReport = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportSubject.trim() || !reportDetails.trim()) return;
+
+    setReportSubmitting(true);
+    const reportMsg = `📋 [কাস্টমার সাপোর্ট রিপোর্ট জমা পড়েছে]\n\n📌 বিষয়: ${reportSubject}\n🔢 অর্ডার/রেফারেন্স: ${reportOrderRef || 'N/A'}\n📞 যোগাযোগ: ${reportPhone || chat.customer.phone || 'N/A'}\n📝 বিবরণ:\n${reportDetails}`;
+
+    onSendMessage(reportMsg);
+
+    setTimeout(() => {
+      setReportSubmitting(false);
+      setReportSuccess('আপনার রিপোর্ট/অভিযোগটি সফলভাবে জমা হয়েছে! আমাদের সাপোর্ট টিম খতিয়ে দেখবে।');
+      setTimeout(() => {
+        setShowReportModal(false);
+        setReportSuccess(null);
+        setReportOrderRef('');
+        setReportDetails('');
+      }, 2000);
+    }, 400);
+  };
+
+  const renderMessageContent = (content: string, isCustomer: boolean) => {
+    const isReportTrigger = content.includes('report-form') || content.includes('রিপোর্ট') || content.includes('অভিযোগ');
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = content.split(urlRegex);
+
+    return (
+      <div className="space-y-2">
+        <p className="whitespace-pre-wrap">
+          {parts.map((part, index) => {
+            if (part.match(urlRegex)) {
+              return (
+                <a
+                  key={index}
+                  href={part}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`underline inline-flex items-center gap-1 font-semibold break-all ${
+                    isCustomer ? 'text-white hover:text-blue-100' : 'text-blue-600 hover:text-blue-800'
+                  }`}
+                >
+                  <span>{part}</span>
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                </a>
+              );
+            }
+            return part;
+          })}
+        </p>
+
+        {/* Interactive Report Form Button if message contains report link/trigger */}
+        {isReportTrigger && !isCustomer && (
+          <div className="mt-2.5 p-3 bg-blue-50/90 border border-blue-200/90 rounded-xl flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 text-blue-900 font-bold text-xs">
+              <ClipboardList className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>অনলাইন সাপোর্ট ও রিপোর্ট ফরম</span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-tight">
+              আপনার অভিযোগ বা সমস্যা জানাতে নিচের বাটনে ক্লিক করে ফরম পূরণ করুন:
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setReportPhone(chat.customer.phone || '');
+                setShowReportModal(true);
+              }}
+              className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <ClipboardList className="w-4 h-4" />
+              <span>📋 রিপোর্ট ফরম পূরণ করুন (Fill Form)</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -263,7 +349,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         : 'rounded-bl-xs border-slate-200/80 text-slate-800'
                     }`}
                   >
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    {renderMessageContent(msg.content, isCustomer)}
 
                     {/* Attachments preview */}
                     {msg.attachments && msg.attachments.length > 0 && (
@@ -409,6 +495,124 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               <X className="w-5 h-5" />
             </button>
             <img src={previewImageModal} alt="Enlarged preview" className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl" />
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Report Form Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 relative space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <ClipboardList className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">অনলাইন রিপোর্ট ও অভিযোগ ফরম</h3>
+                  <p className="text-[11px] text-slate-500">আপনার সমস্যা বিস্তারিত লিখে জমা দিন</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReportModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {reportSuccess ? (
+              <div className="py-6 text-center space-y-2">
+                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto animate-bounce">
+                  <CheckCircle2 className="w-7 h-7" />
+                </div>
+                <h4 className="font-bold text-slate-900 text-sm">রিপোর্ট জমা হয়েছে!</h4>
+                <p className="text-xs text-slate-600 px-2">{reportSuccess}</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitReport} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    অভিযোগ/রিপোর্টের বিষয় <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={reportSubject}
+                    onChange={(e) => setReportSubject(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  >
+                    <option value="পণ্য বা সার্ভিস সংক্রান্ত অভিযোগ">পণ্য বা সার্ভিস সংক্রান্ত অভিযোগ</option>
+                    <option value="ডেলিভারি সমস্যা / দেরি হওয়া">ডেলিভারি সমস্যা / দেরি হওয়া</option>
+                    <option value="পেমেন্ট বা রিফান্ড ইস্যু">পেমেন্ট বা রিফান্ড ইস্যু</option>
+                    <option value="প্রযুক্তিগত সমস্যা / টেকনিক্যাল বাগ">প্রযুক্তিগত সমস্যা / টেকনিক্যাল বাগ</option>
+                    <option value="অন্যান্য সমস্যা">অন্যান্য সমস্যা</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    অর্ডার/রেফারেন্স আইডি (ঐচ্ছিক)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: ORD-98213"
+                    value={reportOrderRef}
+                    onChange={(e) => setReportOrderRef(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    যোগাযোগ নম্বর (ফোন/মোবাইল)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="আপনার মোবাইল নম্বর"
+                    value={reportPhone}
+                    onChange={(e) => setReportPhone(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    বিস্তারিত বিবরণ <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    placeholder="কী ধরনের সমস্যা হচ্ছে তা বিস্তারিত লিখুন..."
+                    value={reportDetails}
+                    onChange={(e) => setReportDetails(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                  ></textarea>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowReportModal(false)}
+                    className="px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                  >
+                    বাতিল
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={reportSubmitting || !reportDetails.trim()}
+                    style={{ backgroundColor: widgetConfig.primaryColor }}
+                    className="px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs hover:opacity-90 transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {reportSubmitting ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    )}
+                    <span>জমা দিন</span>
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

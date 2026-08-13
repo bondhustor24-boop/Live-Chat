@@ -14,7 +14,8 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
-  CheckCheck
+  CheckCheck,
+  ClipboardList
 } from 'lucide-react';
 import { ChatSession, ChatMessage, Agent, CannedResponse } from '../../types';
 import { LoadingSpinner } from '../LoadingSpinner';
@@ -483,7 +484,22 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Send Report Form Link */}
+            <button
+              type="button"
+              onClick={() => {
+                onSendMessage(
+                  '📋 কাস্টমার সাপোর্ট রিপোর্ট ও অভিযোগ ফরম:\nঅনুগ্রহ করে আপনার কোনো অভিযোগ বা রিপোর্ট থাকলে নিচের লিংকে ক্লিক করে ফরমটি পূরণ করুন:\nhttps://live-chat-swart-nine.vercel.app/report-form',
+                  false
+                );
+              }}
+              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold rounded-lg border border-amber-200 flex items-center gap-1 transition cursor-pointer"
+            >
+              <ClipboardList className="w-3.5 h-3.5 text-amber-600" />
+              <span>📋 রিপোর্ট ফরম লিংক পাঠান</span>
+            </button>
+
             {/* Canned Responses Trigger */}
             <button
               type="button"
