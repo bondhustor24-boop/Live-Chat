@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon } from 'lucide-react';
+import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck } from 'lucide-react';
 import { ChatSession, ChatMessage, WidgetConfig } from '../../types';
 
 interface ChatWindowProps {
@@ -183,6 +183,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     <span>{msg.senderName}</span>
                     <span>•</span>
                     <span>{msg.timestamp}</span>
+                    {isCustomer && (
+                      <span className="flex items-center gap-0.5 ml-0.5" title={msg.readStatus === 'read' ? 'এজেন্ট দেখেছে (Read)' : 'পাঠানো হয়েছে'}>
+                        {msg.readStatus === 'read' ? (
+                          <CheckCheck className="w-3.5 h-3.5 text-blue-500 font-bold" />
+                        ) : msg.readStatus === 'delivered' ? (
+                          <CheckCheck className="w-3.5 h-3.5 text-slate-400" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5 text-slate-400" />
+                        )}
+                      </span>
+                    )}
                   </div>
 
                   {/* Message Bubble */}

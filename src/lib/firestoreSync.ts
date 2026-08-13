@@ -57,6 +57,25 @@ export const db = firestoreDb;
 const CHATS_COL = 'chats';
 const MESSAGES_COL = 'messages';
 const SETTINGS_COL = 'settings';
+const TYPING_COL = 'typing_status';
+
+// Save or Update Typing Status in Firestore
+export async function syncTypingStatusToFirestore(chatId: string, senderRole: 'customer' | 'agent', isTyping: boolean, senderName?: string) {
+  if (!chatId) return;
+  try {
+    const docId = `${chatId}_${senderRole}`;
+    const typingRef = doc(db, TYPING_COL, docId);
+    await setDoc(typingRef, {
+      chatId,
+      senderRole,
+      isTyping,
+      senderName: senderName || (senderRole === 'customer' ? 'Customer' : 'Agent'),
+      updatedAt: Date.now(),
+    });
+  } catch (err) {
+    console.error('Error syncing typing status to Firestore:', err);
+  }
+}
 
 // Save or Update a Chat in Firestore
 export async function syncChatToFirestore(chat: any) {
@@ -165,10 +184,12 @@ export async function loadFirestoreData() {
 // Realtime Firestore Listener
 export function setupFirestoreRealtimeListeners(
   onChatsUpdate: (chats: any[]) => void,
-  onMessagesUpdate: (messagesMap: Record<string, any[]>) => void
+  onMessagesUpdate: (messagesMap: Record<string, any[]>) => void,
+  onTypingUpdate?: (chatId: string, senderRole: 'customer' | 'agent', isTyping: boolean, senderName?: string) => void
 ) {
   let unsubscribeChats: (() => void) | null = null;
   let unsubscribeMessages: (() => void) | null = null;
+  let unsubscribeTyping: (() => void) | null = null;
 
   const listenChats = () => {
     try {
@@ -236,6 +257,39 @@ export function setupFirestoreRealtimeListeners(
     }
   };
 
+  const listenTyping = () => {
+    if (!onTypingUpdate) return;
+    try {
+      if (unsubscribeTyping) {
+        try { unsubscribeTyping(); } catch (e) {}
+      }
+      unsubscribeTyping = onSnapshot(
+        collection(db, TYPING_COL),
+        (snapshot) => {
+          const now = Date.now();
+          snapshot.forEach((d) => {
+            const data = d.data();
+            if (data && data.chatId) {
+              // Ignore typing status older than 6 seconds
+              const isRecent = data.updatedAt && (now - data.updatedAt < 6000);
+              const isTypingActive = data.isTyping && isRecent;
+              onTypingUpdate(data.chatId, data.senderRole, isTypingActive, data.senderName);
+            }
+          });
+        },
+        (error) => {
+          console.log('Firestore typing listener idle/reconnect event:', error.message || error);
+          setTimeout(() => {
+            listenTyping();
+          }, 2000);
+        }
+      );
+    } catch (e) {
+      console.warn('Error initiating typing listener:', e);
+    }
+  };
+
   listenChats();
   listenMessages();
+  listenTyping();
 }

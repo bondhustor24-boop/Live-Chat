@@ -32,6 +32,7 @@ import {
 import {
   syncChatToFirestore,
   syncMessageToFirestore,
+  syncTypingStatusToFirestore,
   deleteChatFromFirestore,
   syncWidgetConfigToFirestore,
   loadFirestoreData,
@@ -279,6 +280,17 @@ export default function App() {
             ...firestoreMessagesMap,
           }));
         }
+      },
+      (chatId, senderRole, isTyping, senderName) => {
+        if (senderRole === 'customer') {
+          if (chatId === selectedChatId) {
+            setIsCustomerTyping(isTyping);
+          }
+        } else {
+          if (chatId === customerChatId) {
+            setIsTypingAgent(isTyping ? (senderName || 'এজেন্ট') : null);
+          }
+        }
       }
     );
 
@@ -309,6 +321,76 @@ export default function App() {
       wsRef.current?.close();
     };
   }, []);
+
+  // Auto mark customer messages as READ when Agent views selectedChatId
+  useEffect(() => {
+    if (!selectedChatId) return;
+    const currentMsgs = messages[selectedChatId];
+    if (!currentMsgs || currentMsgs.length === 0) return;
+
+    let hasUnread = false;
+    const updatedMsgs = currentMsgs.map((m) => {
+      if (m.senderRole === 'customer' && m.readStatus !== 'read') {
+        hasUnread = true;
+        const readMsg = { ...m, readStatus: 'read' as const };
+        syncMessageToFirestore(readMsg);
+        return readMsg;
+      }
+      return m;
+    });
+
+    if (hasUnread) {
+      setMessages((prev) => ({
+        ...prev,
+        [selectedChatId]: updatedMsgs,
+      }));
+      setChats((prev) =>
+        prev.map((c) => {
+          if (c.id === selectedChatId && (c.unreadCountAgent || 0) > 0) {
+            const updatedChat = { ...c, unreadCountAgent: 0 };
+            syncChatToFirestore(updatedChat);
+            return updatedChat;
+          }
+          return c;
+        })
+      );
+    }
+  }, [selectedChatId, messages[selectedChatId]?.length]);
+
+  // Auto mark agent messages as READ when Customer views customerChatId
+  useEffect(() => {
+    if (!customerChatId) return;
+    const currentMsgs = messages[customerChatId];
+    if (!currentMsgs || currentMsgs.length === 0) return;
+
+    let hasUnread = false;
+    const updatedMsgs = currentMsgs.map((m) => {
+      if (m.senderRole === 'agent' && m.readStatus !== 'read') {
+        hasUnread = true;
+        const readMsg = { ...m, readStatus: 'read' as const };
+        syncMessageToFirestore(readMsg);
+        return readMsg;
+      }
+      return m;
+    });
+
+    if (hasUnread) {
+      setMessages((prev) => ({
+        ...prev,
+        [customerChatId]: updatedMsgs,
+      }));
+      setChats((prev) =>
+        prev.map((c) => {
+          if (c.id === customerChatId && (c.unreadCountCustomer || 0) > 0) {
+            const updatedChat = { ...c, unreadCountCustomer: 0 };
+            syncChatToFirestore(updatedChat);
+            return updatedChat;
+          }
+          return c;
+        })
+      );
+    }
+  }, [customerChatId, messages[customerChatId]?.length]);
 
   const fetchInitialData = async () => {
     try {
@@ -822,6 +904,7 @@ export default function App() {
 
   const handleCustomerTyping = (isTyping: boolean) => {
     if (!customerChatId) return;
+    syncTypingStatusToFirestore(customerChatId, 'customer', isTyping, 'Customer');
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
@@ -1016,6 +1099,7 @@ export default function App() {
 
   const handleAgentTyping = (isTyping: boolean) => {
     if (!selectedChatId) return;
+    syncTypingStatusToFirestore(selectedChatId, 'agent', isTyping, activeAgent.name);
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({

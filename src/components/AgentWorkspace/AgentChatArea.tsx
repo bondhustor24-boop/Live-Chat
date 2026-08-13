@@ -12,7 +12,9 @@ import {
   X,
   FileText,
   AlertCircle,
-  ArrowLeft
+  ArrowLeft,
+  Check,
+  CheckCheck
 } from 'lucide-react';
 import { ChatSession, ChatMessage, Agent, CannedResponse } from '../../types';
 import { LoadingSpinner } from '../LoadingSpinner';
@@ -257,6 +259,17 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
                   <span>{msg.senderName}</span>
                   <span>•</span>
                   <span>{msg.timestamp}</span>
+                  {!isCustomer && (
+                    <span className="flex items-center gap-0.5 ml-0.5" title={msg.readStatus === 'read' ? 'গ্রাহক দেখেছে (Read)' : 'পাঠানো হয়েছে'}>
+                      {msg.readStatus === 'read' ? (
+                        <CheckCheck className="w-3.5 h-3.5 text-sky-400 font-bold" />
+                      ) : msg.readStatus === 'delivered' ? (
+                        <CheckCheck className="w-3.5 h-3.5 text-slate-400" />
+                      ) : (
+                        <Check className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </span>
+                  )}
                 </div>
 
                 <div
