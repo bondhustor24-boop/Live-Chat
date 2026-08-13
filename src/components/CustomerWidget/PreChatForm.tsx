@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Send, User, Mail, Phone, MessageSquare, Building2, Loader2, Megaphone, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
-import { WidgetConfig } from '../../types';
+import { Send, User, Mail, Phone, MessageSquare, Building2, HelpCircle, Megaphone, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
+import { WidgetConfig, SUPPORT_PROBLEM_OPTIONS, type SupportProblemIssue } from '../../types';
 import { LoadingSpinner } from '../LoadingSpinner';
 
 interface PreChatFormProps {
@@ -11,6 +11,7 @@ interface PreChatFormProps {
     customerEmail: string;
     department: string;
     subject: string;
+    problemIssue?: string;
     initialMessage: string;
   }) => void;
 }
@@ -20,6 +21,7 @@ export const PreChatForm: React.FC<PreChatFormProps> = ({ widgetConfig, onSubmit
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [department, setDepartment] = useState(widgetConfig.departments[0] || 'গ্রাহক সহায়তা (Customer Support)');
+  const [problemIssue, setProblemIssue] = useState<SupportProblemIssue>('withdraw_problem');
   const [subject, setSubject] = useState('');
   const [initialMessage, setInitialMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,6 +57,10 @@ export const PreChatForm: React.FC<PreChatFormProps> = ({ widgetConfig, onSubmit
       alert('অনুগ্রহ করে একটি সঠিক ১০ বা ১১ ডিজিটের মোবাইল নম্বর প্রদান করুন (যেমন: 01712345678)।');
       return;
     }
+
+    const selectedOption = SUPPORT_PROBLEM_OPTIONS.find((opt) => opt.value === problemIssue);
+    const calculatedSubject = subject.trim() || selectedOption?.bangla || 'সাপোর্ট অনুসন্ধান';
+
     setIsSubmitting(true);
     setTimeout(() => {
       onSubmit({
@@ -62,7 +68,8 @@ export const PreChatForm: React.FC<PreChatFormProps> = ({ widgetConfig, onSubmit
         customerPhone: cleanPhone,
         customerEmail,
         department,
-        subject,
+        subject: calculatedSubject,
+        problemIssue,
         initialMessage,
       });
       setIsSubmitting(false);
@@ -208,6 +215,28 @@ export const PreChatForm: React.FC<PreChatFormProps> = ({ widgetConfig, onSubmit
             placeholder="tanjila@example.com"
             className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
           />
+        </div>
+      </div>
+
+      {/* Problem Issue Selection */}
+      <div>
+        <label className="block text-xs font-semibold text-slate-700 mb-1">
+          সমস্যার ধরন / বিষয় নির্বাচন করুন *
+        </label>
+        <div className="relative">
+          <HelpCircle className="w-4 h-4 text-amber-500 absolute left-3 top-2.5" />
+          <select
+            id="prechat-problem-issue-select"
+            value={problemIssue}
+            onChange={(e) => setProblemIssue(e.target.value as SupportProblemIssue)}
+            className="w-full pl-9 pr-3 py-2 text-xs border border-amber-300 rounded-lg bg-amber-50/50 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition cursor-pointer"
+          >
+            {SUPPORT_PROBLEM_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.icon} {opt.bangla}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

@@ -19,6 +19,7 @@ import {
   MessageSquare,
   UserCheck,
   CheckCircle2,
+  CheckCheck,
   ExternalLink,
   Bot,
   Copy,
@@ -37,9 +38,29 @@ import {
   Eye,
   EyeOff,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  HelpCircle,
+  Smartphone
 } from 'lucide-react';
-import { Agent, ChatSession, ChatMessage, WidgetConfig, BlockedUser, AdminUser, PromoBanner } from '../../types';
+import {
+  Agent,
+  ChatSession,
+  ChatMessage,
+  WidgetConfig,
+  BlockedUser,
+  AdminUser,
+  PromoBanner,
+  SUPPORT_PROBLEM_OPTIONS,
+  type SupportProblemIssue
+} from '../../types';
+import {
+  authenticateAdminWithFirestore,
+  loadAdminUsersFromFirestore,
+  syncAdminUserToFirestore,
+  deleteAdminUserFromFirestore,
+  markChatAsSeenByAdminInFirestore,
+  AdminAccount
+} from '../../lib/firestoreSync';
 import { CODE_GS_SCRIPT } from './CodeGsModal';
 import { LoadingSpinner, LoadingButton } from '../LoadingSpinner';
 
@@ -59,7 +80,7 @@ interface AdminPanelProps {
   onAssignAgent?: (chatId: string, agentId: string) => void;
   onBlockUser?: (chatId: string, phone?: string, ipAddress?: string, name?: string, reason?: string) => void;
   onUnblockUser?: (id: string) => void;
-  onStartNewChat?: (data: { customerName: string; customerPhone?: string; customerEmail: string; department: string; subject: string; initialMessage: string }) => void;
+  onStartNewChat?: (data: { customerName: string; customerPhone?: string; customerEmail: string; department: string; subject: string; problemIssue?: string; initialMessage: string }) => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -84,9 +105,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('novachat_admin_auth') === 'true';
   });
-  const [adminEmail, setAdminEmail] = useState('admin@novachat.com');
-  const [adminPassword, setAdminPassword] = useState('admin123');
+  const [currentAdminProfile, setCurrentAdminProfile] = useState<AdminAccount | null>(() => {
+    const saved = localStorage.getItem('novachat_admin_profile');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [adminEmail, setAdminEmail] = useState('saju2470');
+  const [adminPassword, setAdminPassword] = useState('20203494aa');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
+
+  // Font Size Management (User requested 8px default)
+  const [adminFontSize, setAdminFontSize] = useState<string>(() => {
+    return localStorage.getItem('novachat_admin_fontsize') || '8px';
+  });
+
+  const handleSetFontSize = (size: string) => {
+    setAdminFontSize(size);
+    localStorage.setItem('novachat_admin_fontsize', size);
+  };
+
+  // Mobile View Management for Admin Live Chat
+  const [mobileChatView, setMobileChatView] = useState<'list' | 'chat'>('list');
 
   // Active Admin Sub-tab
   const [adminTab, setAdminTab] = useState<'overview' | 'live_chat' | 'agents' | 'codegs' | 'blocked_users' | 'admin_users' | 'settings' | 'promotion' | 'spinners'>('overview');
@@ -358,12 +404,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newCustPhone, setNewCustPhone] = useState('');
   const [newCustEmail, setNewCustEmail] = useState('');
   const [newCustDept, setNewCustDept] = useState('সাধারণ জিজ্ঞাসা');
-  const [newCustSubject, setNewCustSubject] = useState('অ্যাডমিন প্যানেল চ্যাট টিকিট');
+  const [newCustProblemIssue, setNewCustProblemIssue] = useState<SupportProblemIssue>('deposit_problem');
+  const [newCustSubject, setNewCustSubject] = useState('ডিপোজিট সমস্যা');
   const [newCustMessage, setNewCustMessage] = useState('');
 
+  // Handle selecting a chat session in Admin Live Chat & mark as seen
+  const handleSelectAdminChat = async (chatId: string) => {
+    setSelectedAdminChatId(chatId);
+    setMobileChatView('chat');
+    const adminDisplayName = currentAdminProfile?.name || 'Saju Ahmed (Admin)';
+    await markChatAsSeenByAdminInFirestore(chatId, adminDisplayName);
+  };
+
   useEffect(() => {
-    if (adminTab === 'live_chat') {
+    if (adminTab === 'live_chat' && selectedAdminChatId) {
       chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const adminDisplayName = currentAdminProfile?.name || 'Saju Ahmed (Admin)';
+      markChatAsSeenByAdminInFirestore(selectedAdminChatId, adminDisplayName);
     }
   }, [selectedAdminChatId, messages, adminTab]);
 
@@ -385,20 +442,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isTestingScript, setIsTestingScript] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
-  // Handle Login Submit
-  const handleLogin = (e: React.FormEvent) => {
+  // Handle Login Submit strictly via Firebase Firestore
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((adminEmail === 'saju2470' || adminEmail === 'admin@novachat.com' || adminEmail === 'admin') && adminPassword === '20203494aa') {
-      setIsLoggedIn(true);
-      localStorage.setItem('novachat_admin_auth', 'true');
-      setLoginError('');
-    } else if (adminEmail && adminPassword.length >= 4) {
-      // Allow custom admin credentials
-      setIsLoggedIn(true);
-      localStorage.setItem('novachat_admin_auth', 'true');
-      setLoginError('');
-    } else {
-      setLoginError('ইউজারনেম বা পাসওয়ার্ড সঠিক নয়। আইডি: saju2470 / পাসওয়ার্ড: 20203494aa');
+    setIsLoggingIn(true);
+    setLoginError('');
+
+    try {
+      const result = await authenticateAdminWithFirestore(adminEmail.trim(), adminPassword.trim());
+      if (result.success && result.admin) {
+        setIsLoggedIn(true);
+        setCurrentAdminProfile(result.admin);
+        localStorage.setItem('novachat_admin_auth', 'true');
+        localStorage.setItem('novachat_admin_profile', JSON.stringify(result.admin));
+        setLoginError('');
+      } else {
+        setLoginError(result.error || 'ইউজারনেম বা পাসওয়ার্ড সঠিক নয়। Firebase একাউন্ট চেক করুন।');
+      }
+    } catch (err: any) {
+      console.error('Firebase admin login error:', err);
+      setLoginError('Firebase সার্ভার সংযোগে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -411,7 +476,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Handle Logout
   const handleLogout = () => {
     setIsLoggedIn(false);
+    setCurrentAdminProfile(null);
     localStorage.removeItem('novachat_admin_auth');
+    localStorage.removeItem('novachat_admin_profile');
   };
 
   // Handle Add New Agent
@@ -533,15 +600,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">অ্যাডমিন ইমেইল এড্রেস</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                অ্যাডমিন ইউজারনেম অথবা ইমেইল এড্রেস
+              </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
-                  placeholder="admin@novachat.com"
+                  placeholder="saju2470 অথবা admin@novachat.com"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
                 />
               </div>
@@ -564,10 +633,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2"
+              disabled={isLoggingIn}
+              className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
             >
-              <ShieldCheck className="w-4 h-4" />
-              <span>অ্যাডমিন প্যানেলে লগইন করুন</span>
+              {isLoggingIn ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Firebase থেকে যাচাই করা হচ্ছে...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>অ্যাডমিন প্যানেলে লগইন করুন (Firebase)</span>
+                </>
+              )}
             </button>
           </form>
 
@@ -578,58 +657,89 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // LOGGED IN -> ADMIN DASHBOARD VIEW
   return (
-    <div id="admin-dashboard-page" className="flex-1 bg-slate-50 overflow-y-auto p-3 sm:p-5 text-[10px]">
-      <div className="max-w-6xl mx-auto space-y-5">
+    <div
+      id="admin-dashboard-page"
+      style={{
+        fontSize: adminFontSize,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        touchAction: 'pan-y'
+      }}
+      className="w-full h-full flex-1 bg-slate-50 overflow-y-auto overscroll-contain p-2 sm:p-4 text-[8px] admin-compact-mode pb-28 select-text"
+    >
+      <div className="max-w-6xl mx-auto space-y-4">
         
         {/* Top Admin Navigation Header */}
-        <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[10px]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md">
-              <ShieldCheck className="w-5 h-5" />
+        <div className="bg-slate-900 text-white rounded-2xl p-3 sm:p-4 border border-slate-800 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shrink-0">
+              <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 flex-wrap">
                 <span>নোভাচ্যাট অ্যাডমিন কন্ট্রোল প্যানেল</span>
-                <span className="text-[9px] bg-emerald-500 text-slate-950 font-black uppercase px-2 py-0.5 rounded-full">
+                <span className="text-[8px] bg-emerald-500 text-slate-950 font-black uppercase px-1.5 py-0.2 rounded-full">
                   সক্রিয়
                 </span>
+                <span className="text-[8px] bg-blue-500/30 text-blue-300 font-mono px-1.5 py-0.2 rounded border border-blue-400/30">
+                  Font: {adminFontSize}
+                </span>
               </h2>
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[8px] sm:text-[9px] text-slate-400 mt-0.5">
                 লগইন একাউন্ট: <span className="text-blue-300 font-semibold">{adminEmail}</span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
+            {/* Font Size Selector (User requested 8px) */}
+            <div className="flex items-center bg-slate-800/80 border border-slate-700/80 rounded-lg p-0.5 text-[8px]">
+              <span className="text-slate-400 px-1.5 font-bold">ফন্ট:</span>
+              {(['8px', '9px', '10px', '11px'] as const).map((sz) => (
+                <button
+                  key={sz}
+                  onClick={() => handleSetFontSize(sz)}
+                  className={`px-1.5 py-0.5 rounded transition font-bold cursor-pointer ${
+                    adminFontSize === sz
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                  }`}
+                  title={`ফন্ট সাইজ ${sz} সেট করুন`}
+                >
+                  {sz}
+                </button>
+              ))}
+            </div>
+
             <button
               onClick={onOpenCodeGsModal}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-semibold rounded-xl flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[8px] sm:text-[9px] font-semibold rounded-lg flex items-center gap-1 transition shadow-xs cursor-pointer"
             >
-              <Code className="w-3.5 h-3.5" />
+              <Code className="w-3 h-3" />
               <span>Code.gs ফাইল</span>
             </button>
 
             <button
               onClick={handleLogout}
-              className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-[10px] font-semibold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
+              className="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-[8px] sm:text-[9px] font-semibold rounded-lg flex items-center gap-1 transition cursor-pointer"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-3 h-3" />
               <span>লগআউট</span>
             </button>
           </div>
         </div>
 
         {/* Sub Navigation Bar */}
-        <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 text-[10px] font-semibold overflow-x-auto">
+        <div className="flex items-center gap-1 border-b border-slate-200 pb-2 text-[8px] sm:text-[9px] font-semibold overflow-x-auto">
           <button
             onClick={() => setAdminTab('overview')}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shrink-0 ${
               adminTab === 'overview'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <BarChart3 className="w-3.5 h-3.5" />
+            <BarChart3 className="w-3 h-3" />
             <span>সংক্ষিপ্ত ওভারভিউ</span>
           </button>
 
@@ -640,98 +750,98 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 setSelectedAdminChatId(chats[0].id);
               }
             }}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shrink-0 ${
               adminTab === 'live_chat'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <MessageSquare className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <MessageSquare className="w-3 h-3 text-amber-500 shrink-0" />
             <span>💬 কাস্টমার লাইভ চ্যাট ({chats.length})</span>
           </button>
 
           <button
             onClick={() => setAdminTab('agents')}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shrink-0 ${
               adminTab === 'agents'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <Users className="w-3.5 h-3.5" />
+            <Users className="w-3 h-3" />
             <span>সাপোর্ট এজেন্টসমূহ ({agents.length})</span>
           </button>
 
           <button
             onClick={() => setAdminTab('promotion')}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shrink-0 ${
               adminTab === 'promotion'
-                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm font-bold'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs font-bold'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <Megaphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span>📢 ওয়েবসাইট প্রমোশন (Promote Site)</span>
+            <Megaphone className="w-3 h-3 text-amber-400 shrink-0" />
+            <span>📢 ওয়েবসাইট প্রমোশন</span>
           </button>
 
           <button
             onClick={() => setAdminTab('codegs')}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shrink-0 ${
               adminTab === 'codegs'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <FileSpreadsheet className="w-3 h-3" />
             <span>Code.gs ও গুগল শিট সিঙ্ক</span>
           </button>
 
           <button
             onClick={() => setAdminTab('blocked_users')}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shrink-0 ${
               adminTab === 'blocked_users'
-                ? 'bg-rose-600 text-white shadow-sm font-bold'
+                ? 'bg-rose-600 text-white shadow-xs font-bold'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-rose-500" />
-            <span>🚫 ব্লকড ইউজার আইডি ({blockedUsers.length})</span>
+            <ShieldCheck className="w-3 h-3 text-rose-500" />
+            <span>🚫 ব্লকড ইউজার ({blockedUsers.length})</span>
           </button>
 
           <button
             onClick={() => setAdminTab('admin_users')}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shrink-0 ${
               adminTab === 'admin_users'
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm font-bold'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <KeyRound className="w-3.5 h-3.5 text-indigo-500" />
+            <KeyRound className="w-3 h-3 text-indigo-500" />
             <span>👤 ইউজার ও রোল শিট ({adminUsersList.length})</span>
           </button>
 
           <button
             onClick={() => setAdminTab('settings')}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shrink-0 ${
               adminTab === 'settings'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <Lock className="w-4 h-4" />
+            <Lock className="w-3 h-3" />
             <span>পাসওয়ার্ড কাস্টমাইজেশন</span>
           </button>
 
           <button
             onClick={() => setAdminTab('spinners')}
-            className={`px-4 py-2 rounded-xl flex items-center gap-2 transition ${
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shrink-0 ${
               adminTab === 'spinners'
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm font-bold'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold'
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-            <span>🌀 লোডিং স্পিনার ফাংশন (Playground)</span>
+            <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+            <span>🌀 স্পিনার</span>
           </button>
         </div>
 
@@ -883,9 +993,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           };
 
           return (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col md:flex-row h-[650px] animate-in fade-in">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col md:flex-row h-[560px] max-h-[calc(100vh-200px)] min-h-[420px] animate-in fade-in">
               {/* Left Column: Customer Chat List */}
-              <div className="w-full md:w-80 border-r border-slate-200 bg-slate-50 flex flex-col h-full shrink-0">
+              <div
+                className={`w-full md:w-80 border-r border-slate-200 bg-slate-50 flex flex-col h-full shrink-0 ${
+                  mobileChatView === 'chat' ? 'hidden md:flex' : 'flex'
+                }`}
+              >
                 <div className="p-3 border-b border-slate-200 bg-white space-y-2">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
@@ -919,7 +1033,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     return (
                       <button
                         key={c.id}
-                        onClick={() => setSelectedAdminChatId(c.id)}
+                        onClick={() => handleSelectAdminChat(c.id)}
                         className={`w-full text-left p-3 rounded-xl transition flex items-start gap-2.5 ${
                           isSelected ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-100 text-slate-800'
                         }`}
@@ -939,13 +1053,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             </span>
                           </div>
 
-                          <div className={`font-mono text-[10px] font-bold truncate mt-0.5 ${
+                          <div className={`font-mono text-[10px] font-bold truncate mt-0.5 flex items-center justify-between ${
                             isSelected ? 'text-amber-200' : 'text-blue-700'
                           }`}>
-                            🆔 {c.id}
+                            <span>🆔 {c.id}</span>
+                            {c.adminSeen && (
+                              <span className={`text-[9px] px-1 py-0.2 rounded font-sans ${isSelected ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-600'}`}>
+                                ✓✓ Seen
+                              </span>
+                            )}
                           </div>
 
-                          <div className={`text-[10px] truncate ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
+                          {c.problemIssue && (
+                            <div className={`text-[9px] font-medium truncate mt-0.5 ${isSelected ? 'text-amber-300 font-bold' : 'text-amber-700 font-semibold'}`}>
+                              📌 {c.problemIssue}
+                            </div>
+                          )}
+
+                          <div className={`text-[10px] truncate mt-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
                             📞 {c.customer.phone || '01712345678'} • IP: {c.customer.ipAddress || '103.205.132.42'}
                           </div>
                         </div>
@@ -962,7 +1087,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               {/* Right Column: Live Chat Screen */}
               {activeChatSession ? (
-                <div className="flex-1 flex flex-col h-full bg-slate-50/50 min-w-0">
+                <div
+                  className={`flex-1 flex flex-col h-full bg-slate-50/50 min-w-0 ${
+                    mobileChatView === 'list' ? 'hidden md:flex' : 'flex'
+                  }`}
+                >
+                  {/* Mobile Back Button Bar */}
+                  <div className="md:hidden p-2 bg-slate-900 text-white flex items-center justify-between">
+                    <button
+                      onClick={() => setMobileChatView('list')}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>← কাস্টমার তালিকায় ফিরে যান</span>
+                    </button>
+                    <span className="text-[10px] font-mono text-amber-300">
+                      ID: #{activeChatSession.id}
+                    </span>
+                  </div>
+
                   {/* Chat Session Header */}
                   <div className="p-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
                     <div className="flex items-center gap-3 min-w-0">
@@ -976,11 +1119,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <h3 className="font-bold text-slate-900 text-sm truncate">
                             {activeChatSession.customer.name}
                           </h3>
-                          <span className="font-mono text-[10px] bg-slate-900 text-amber-300 font-bold px-2 py-0.5 rounded-md">
-                            {activeChatSession.id}
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(activeChatSession.id);
+                              alert(`Chat ID কপি করা হয়েছে: ${activeChatSession.id}`);
+                            }}
+                            title="Chat ID কপি করুন"
+                            className="font-mono text-[10px] bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-0.5 rounded-md flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>#{activeChatSession.id}</span>
+                            <Copy className="w-2.5 h-2.5 opacity-70" />
+                          </button>
+                          <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-full">
+                            এডমিন: {currentAdminProfile?.name || activeChatSession.assignedAgentName || 'Saju Ahmed'}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500 truncate mt-0.5">
+                        <div className="flex items-center gap-2 text-xs text-slate-500 truncate mt-0.5 flex-wrap">
                           <span className="font-mono text-blue-700 font-bold">
                             📞 {activeChatSession.customer.phone || '01712345678'}
                           </span>
@@ -989,7 +1143,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             🌐 IP: {activeChatSession.customer.ipAddress || '103.205.132.42'}
                           </span>
                           <span>•</span>
-                          <span>{activeChatSession.department}</span>
+                          <span className="bg-slate-100 px-1.5 py-0.2 rounded text-[10px] font-semibold text-slate-700">
+                            {activeChatSession.department}
+                          </span>
+                          {activeChatSession.problemIssue && (
+                            <>
+                              <span>•</span>
+                              <span className="bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded text-[10px] font-bold">
+                                📌 {activeChatSession.problemIssue}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2398,7 +2562,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       customerPhone: newCustPhone.trim(),
                       customerEmail: newCustEmail.trim() || `${Date.now()}@example.com`,
                       department: newCustDept,
-                      subject: newCustSubject,
+                      subject: newCustSubject || newCustProblemIssue,
+                      problemIssue: newCustProblemIssue,
                       initialMessage: newCustMessage.trim(),
                     });
                   }
@@ -2420,6 +2585,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     placeholder="যেমন: রহিম আহমেদ"
                     className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+
+                {/* Problem Issue Selection */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    সমস্যার ধরন / ইস্যু (Support Problem Issue) *
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={newCustProblemIssue}
+                      onChange={(e) => {
+                        const val = e.target.value as SupportProblemIssue;
+                        setNewCustProblemIssue(val);
+                        setNewCustSubject(val);
+                      }}
+                      className="w-full px-3 py-2 text-xs font-medium border border-amber-300 bg-amber-50/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                    >
+                      {SUPPORT_PROBLEM_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.icon} {opt.bangla} ({opt.label})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

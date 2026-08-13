@@ -1,8 +1,27 @@
 export type UserRole = 'customer' | 'agent' | 'system' | 'bot';
 
-export type ChatStatus = 'unassigned' | 'active' | 'waiting' | 'resolved';
+export type ChatStatus = 'unassigned' | 'active' | 'waiting' | 'resolved' | 'closed';
 
 export type Priority = 'low' | 'medium' | 'high' | 'urgent';
+
+export type SupportProblemIssue =
+  | 'withdraw_problem'
+  | 'deposit_problem'
+  | 'password_forget'
+  | 'username_forget'
+  | 'email_forget'
+  | 'affiliate_problem'
+  | 'general_support';
+
+export const SUPPORT_PROBLEM_OPTIONS: { value: SupportProblemIssue; label: string; icon: string; bangla: string }[] = [
+  { value: 'withdraw_problem', label: 'Withdraw problem', bangla: 'উইথড্র সমস্যা (Withdraw Problem)', icon: '💸' },
+  { value: 'deposit_problem', label: 'Dipojit problem', bangla: 'ডিপোজিট সমস্যা (Deposit Problem)', icon: '💳' },
+  { value: 'password_forget', label: 'Password forget', bangla: 'পাসওয়ার্ড ভুলে গেছি (Password Forget)', icon: '🔑' },
+  { value: 'username_forget', label: 'User name forget', bangla: 'ইউজারনেম ভুলে গেছি (Username Forget)', icon: '👤' },
+  { value: 'email_forget', label: 'Email address forget', bangla: 'ইমেইল এড্রেস ভুলে গেছি (Email Address Forget)', icon: '📧' },
+  { value: 'affiliate_problem', label: 'Affiliate problem', bangla: 'অ্যাফিলিয়েট সমস্যা (Affiliate Problem)', icon: '🤝' },
+  { value: 'general_support', label: 'General Support', bangla: 'অন্যান্য / সাধারণ সহায়তা', icon: '💬' },
+];
 
 export interface ChatMessage {
   id: string;
@@ -21,6 +40,8 @@ export interface ChatMessage {
   }[];
   quickReplies?: string[];
   readStatus?: 'sent' | 'delivered' | 'read';
+  seenAt?: string;
+  seenBy?: string;
   createdAt?: string;
 }
 
@@ -53,6 +74,10 @@ export interface ChatSession {
   status: ChatStatus;
   priority: Priority;
   subject?: string;
+  problemIssue?: SupportProblemIssue | string;
+  adminSeen?: boolean;
+  adminSeenAt?: string;
+  adminSeenBy?: string;
   createdAt: string;
   updatedAt: string;
   lastMessage?: string;

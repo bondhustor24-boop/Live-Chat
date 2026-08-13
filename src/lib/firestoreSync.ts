@@ -9,7 +9,8 @@ import {
   onSnapshot,
   deleteDoc,
   query,
-  orderBy
+  orderBy,
+  where
 } from 'firebase/firestore';
 import firebaseAppletConfig from '../../firebase-applet-config.json';
 
@@ -59,6 +60,242 @@ const MESSAGES_COL = 'messages';
 const SETTINGS_COL = 'settings';
 const TYPING_COL = 'typing_status';
 const BLOCKED_COL = 'blocked_users';
+const ADMIN_USERS_COL = 'admin_users';
+
+export interface AdminAccount {
+  id: string;
+  username: string;
+  password?: string;
+  name: string;
+  email: string;
+  role: 'Super Admin' | 'Admin' | 'Agent' | 'Manager';
+  avatar?: string;
+  status?: 'online' | 'away' | 'offline';
+  department?: string;
+  createdAt?: string;
+  lastLoginAt?: string;
+}
+
+// Default initial admin accounts for Firebase storage
+export const DEFAULT_FIREBASE_ADMINS: AdminAccount[] = [
+  {
+    id: 'admin_saju2470',
+    username: 'saju2470',
+    password: '20203494aa',
+    name: 'Saju Ahmed',
+    email: 'saju2470@novachat.com',
+    role: 'Super Admin',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    status: 'online',
+    department: 'ম্যানেজমেন্ট (Management)',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'admin_primary',
+    username: 'admin',
+    password: '20203494aa',
+    name: 'Nova Admin',
+    email: 'admin@novachat.com',
+    role: 'Super Admin',
+    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150',
+    status: 'online',
+    department: 'ম্যানেজমেন্ট (Management)',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'agent_arif',
+    username: 'arif',
+    password: 'agent123',
+    name: 'আরিফুল ইসলাম',
+    email: 'arif@novachat.com',
+    role: 'Agent',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    status: 'online',
+    department: 'গ্রাহক সহায়তা',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'agent_tanvir',
+    username: 'tanvir',
+    password: 'agent123',
+    name: 'তানভীর আহমেদ',
+    email: 'tanvir@novachat.com',
+    role: 'Agent',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+    status: 'online',
+    department: 'বিলিং ও ডিপোজিট',
+    createdAt: new Date().toISOString(),
+  },
+];
+
+// Seed default admin users in Firestore if collection is empty
+export async function seedDefaultAdminUsersIfEmpty() {
+  try {
+    const snap = await getDocs(collection(db, ADMIN_USERS_COL));
+    if (snap.empty) {
+      for (const admin of DEFAULT_FIREBASE_ADMINS) {
+        const ref = doc(db, ADMIN_USERS_COL, admin.id);
+        await setDoc(ref, JSON.parse(JSON.stringify(admin)), { merge: true });
+      }
+    }
+  } catch (err) {
+    console.warn('Error checking/seeding admin users in Firestore:', err);
+  }
+}
+
+// Sync Admin user to Firestore
+export async function syncAdminUserToFirestore(adminUser: AdminAccount) {
+  if (!adminUser || !adminUser.id) return;
+  try {
+    const ref = doc(db, ADMIN_USERS_COL, adminUser.id);
+    await setDoc(ref, JSON.parse(JSON.stringify(adminUser)), { merge: true });
+  } catch (err) {
+    console.error('Error syncing admin user to Firestore:', err);
+  }
+}
+
+// Delete Admin user from Firestore
+export async function deleteAdminUserFromFirestore(adminId: string) {
+  if (!adminId) return;
+  try {
+    const ref = doc(db, ADMIN_USERS_COL, adminId);
+    await deleteDoc(ref);
+  } catch (err) {
+    console.error('Error deleting admin user from Firestore:', err);
+  }
+}
+
+// Load all admin users from Firestore
+export async function loadAdminUsersFromFirestore(): Promise<AdminAccount[]> {
+  try {
+    await seedDefaultAdminUsersIfEmpty();
+    const snap = await getDocs(collection(db, ADMIN_USERS_COL));
+    const list: AdminAccount[] = [];
+    snap.forEach((d) => {
+      list.push(d.data() as AdminAccount);
+    });
+    return list.length > 0 ? list : DEFAULT_FIREBASE_ADMINS;
+  } catch (err) {
+    console.warn('Error loading admin users from Firestore:', err);
+    return DEFAULT_FIREBASE_ADMINS;
+  }
+}
+
+// Authenticate Admin user directly against Firebase Firestore
+export async function authenticateAdminWithFirestore(
+  usernameInput: string,
+  passwordInput: string
+): Promise<{ success: boolean; user?: AdminAccount; admin?: AdminAccount; error?: string }> {
+  const cleanUser = (usernameInput || '').trim().toLowerCase();
+  const cleanPass = (passwordInput || '').trim();
+
+  if (!cleanUser || !cleanPass) {
+    return { success: false, error: 'অনুগ্রহ করে ইউজারনেম এবং পাসওয়ার্ড প্রদান করুন।' };
+  }
+
+  try {
+    // 1. First ensure Firestore is seeded with default admins if first run
+    await seedDefaultAdminUsersIfEmpty();
+
+    // 2. Fetch all admin users from Firestore collection 'admin_users'
+    const snap = await getDocs(collection(db, ADMIN_USERS_COL));
+    const adminList: AdminAccount[] = [];
+    snap.forEach((d) => adminList.push(d.data() as AdminAccount));
+
+    // 3. Find matching admin in Firestore
+    const matched = adminList.find(
+      (u) =>
+        (u.username?.toLowerCase() === cleanUser || u.email?.toLowerCase() === cleanUser) &&
+        u.password === cleanPass
+    );
+
+    if (matched) {
+      // Update lastLoginAt in Firestore
+      const updatedUser: AdminAccount = {
+        ...matched,
+        lastLoginAt: new Date().toISOString(),
+      };
+      const ref = doc(db, ADMIN_USERS_COL, matched.id);
+      await setDoc(ref, { lastLoginAt: updatedUser.lastLoginAt }, { merge: true });
+
+      // Omit password from returned state
+      const { password, ...safeUser } = updatedUser;
+      return { success: true, user: safeUser as AdminAccount, admin: safeUser as AdminAccount };
+    }
+
+    return {
+      success: false,
+      error: 'ফায়ারবেস অথেন্টিকেশন ব্যর্থ: ইউজারনেম বা পাসওয়ার্ড সঠিক নয়!',
+    };
+  } catch (err: any) {
+    console.error('Firestore authentication error:', err);
+    // Fallback check against defaults if Firestore network glitch occurs
+    const matchedDefault = DEFAULT_FIREBASE_ADMINS.find(
+      (u) =>
+        (u.username.toLowerCase() === cleanUser || u.email.toLowerCase() === cleanUser) &&
+        u.password === cleanPass
+    );
+    if (matchedDefault) {
+      const { password, ...safeUser } = matchedDefault;
+      return { success: true, user: safeUser as AdminAccount, admin: safeUser as AdminAccount };
+    }
+    return {
+      success: false,
+      error: `ফায়ারবেস ডাটাবেসে লগইন যাচাই করা যায়নি: ${err.message || 'নেটওয়ার্ক ত্রুটি'}`,
+    };
+  }
+}
+
+// Mark chat messages as Seen by Admin in Firestore
+export async function markChatAsSeenByAdminInFirestore(
+  chatId: string,
+  adminName: string
+) {
+  if (!chatId) return;
+  const nowIso = new Date().toISOString();
+  try {
+    // Update chat document in Firestore with admin seen status
+    const chatRef = doc(db, CHATS_COL, chatId);
+    await setDoc(
+      chatRef,
+      {
+        adminSeen: true,
+        adminSeenAt: nowIso,
+        adminSeenBy: adminName || 'এডমিন',
+        unreadCountAgent: 0,
+      },
+      { merge: true }
+    );
+
+    // Update customer messages of this chat to 'read' with seen timestamp
+    const msgsSnap = await getDocs(
+      query(collection(db, MESSAGES_COL), where('chatId', '==', chatId))
+    );
+    const updatePromises: Promise<any>[] = [];
+    msgsSnap.forEach((d) => {
+      const msg = d.data();
+      if (msg.senderRole === 'customer' && msg.readStatus !== 'read') {
+        const msgRef = doc(db, MESSAGES_COL, msg.id || d.id);
+        updatePromises.push(
+          setDoc(
+            msgRef,
+            {
+              readStatus: 'read',
+              seenAt: nowIso,
+              seenBy: adminName || 'এডমিন',
+            },
+            { merge: true }
+          )
+        );
+      }
+    });
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+    }
+  } catch (err) {
+    console.warn(`Error marking chat ${chatId} as seen in Firestore:`, err);
+  }
+}
 
 // Save or Update Blocked User in Firestore
 export async function syncBlockedUserToFirestore(blockedUser: any) {

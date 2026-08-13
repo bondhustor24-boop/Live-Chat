@@ -322,13 +322,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-1.5">
+              <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-semibold text-amber-200 uppercase tracking-wider">
+                এডমিন
+              </span>
               <h4 className="font-bold text-xs sm:text-sm leading-tight text-white">{assignedName}</h4>
               <ShieldCheck className="w-3.5 h-3.5 text-blue-200" />
             </div>
-            <p className="text-[10px] text-white/80 flex items-center gap-1.5 flex-wrap">
-              <span>ID: <strong className="text-amber-200 font-mono">{chat.id}</strong></span>
+            <p className="text-[10px] text-white/90 flex items-center gap-1.5 flex-wrap mt-0.5">
+              <span className="bg-black/20 px-1.5 py-0.5 rounded font-mono text-amber-300">
+                Chat ID: <strong>#{chat.id}</strong>
+              </span>
               <span>•</span>
-              <span className="capitalize">{chat.status === 'active' ? 'অনলাইন' : 'অপেক্ষমাণ'}</span>
+              <span className="capitalize text-emerald-300 font-medium">
+                {chat.status === 'active' ? 'অনলাইন (Online)' : 'অপেক্ষমাণ'}
+              </span>
+              {chat.adminSeen && (
+                <>
+                  <span>•</span>
+                  <span className="text-blue-200 font-medium flex items-center gap-0.5">
+                    <CheckCheck className="w-3 h-3 text-cyan-300" /> Seen
+                  </span>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -496,13 +511,33 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     <span>•</span>
                     <span>{msg.timestamp}</span>
                     {isCustomer && (
-                      <span className="flex items-center gap-0.5 ml-0.5" title={msg.readStatus === 'read' ? 'এজেন্ট দেখেছে (Read)' : 'পাঠানো হয়েছে'}>
+                      <span
+                        className={`flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded-md text-[9px] font-medium transition ${
+                          msg.readStatus === 'read'
+                            ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                            : 'text-slate-400'
+                        }`}
+                        title={
+                          msg.readStatus === 'read'
+                            ? `এডমিন দেখেছেন (${msg.seenBy || 'এডমিন'} • ${msg.seenAt ? new Date(msg.seenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Seen'})`
+                            : 'পাঠানো হয়েছে'
+                        }
+                      >
                         {msg.readStatus === 'read' ? (
-                          <CheckCheck className="w-3.5 h-3.5 text-blue-500 font-bold" />
+                          <>
+                            <CheckCheck className="w-3.5 h-3.5 text-blue-600 font-bold" />
+                            <span>Seen</span>
+                          </>
                         ) : msg.readStatus === 'delivered' ? (
-                          <CheckCheck className="w-3.5 h-3.5 text-slate-400" />
+                          <>
+                            <CheckCheck className="w-3.5 h-3.5 text-slate-400" />
+                            <span>পৌঁছেছে</span>
+                          </>
                         ) : (
-                          <Check className="w-3.5 h-3.5 text-slate-400" />
+                          <>
+                            <Check className="w-3.5 h-3.5 text-slate-400" />
+                            <span>পাঠানো হয়েছে</span>
+                          </>
                         )}
                       </span>
                     )}

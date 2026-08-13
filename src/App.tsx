@@ -38,7 +38,8 @@ import {
   deleteChatFromFirestore,
   syncWidgetConfigToFirestore,
   loadFirestoreData,
-  setupFirestoreRealtimeListeners
+  setupFirestoreRealtimeListeners,
+  authenticateAdminWithFirestore
 } from './lib/firestoreSync';
 
 export default function App() {
@@ -513,6 +514,36 @@ export default function App() {
   const handleAdminLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAdminLoginError('');
+
+    try {
+      // Authenticate with Firebase Firestore
+      const firestoreResult = await authenticateAdminWithFirestore(
+        adminLoginUsername.trim(),
+        adminLoginPassword.trim()
+      );
+
+      if (firestoreResult.success && firestoreResult.admin) {
+        setIsAdminLoggedIn(true);
+        localStorage.setItem('novachat_admin_auth', 'true');
+        localStorage.setItem('novachat_admin_profile', JSON.stringify(firestoreResult.admin));
+        setIsAdminLoginModalOpen(false);
+        setAdminLoginPassword('');
+        setAdminLoginError('');
+
+        if (firestoreResult.admin.role === 'Agent') {
+          setActiveTab('agent_workspace');
+        } else {
+          setActiveTab('admin');
+        }
+        return;
+      } else if (firestoreResult.error && !firestoreResult.error.includes('কানেকশন সমস্যা')) {
+        setAdminLoginError(firestoreResult.error);
+        return;
+      }
+    } catch (err) {
+      console.warn('Firestore direct login error, falling back:', err);
+    }
+
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -539,10 +570,10 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.warn('Backend login API unavailable (GitHub Pages mode)');
+      console.warn('Backend login API unavailable');
     }
 
-    // Static client-side fallback authentication for GitHub Pages
+    // Static client-side fallback authentication
     const usernameInput = adminLoginUsername.trim().toLowerCase();
     if (
       (usernameInput === 'saju2470' && adminLoginPassword === '20203494aa') ||

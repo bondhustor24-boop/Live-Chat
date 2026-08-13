@@ -15,6 +15,7 @@ interface CustomerChatWidgetProps {
     customerEmail: string;
     department: string;
     subject: string;
+    problemIssue?: string;
     initialMessage: string;
   }) => void;
   onSendMessage: (text: string, attachments?: any[]) => void;
@@ -49,6 +50,7 @@ export const CustomerChatWidget: React.FC<CustomerChatWidgetProps> = ({
     customerEmail: string;
     department: string;
     subject: string;
+    problemIssue?: string;
     initialMessage: string;
   }) => {
     onStartChat(data);
