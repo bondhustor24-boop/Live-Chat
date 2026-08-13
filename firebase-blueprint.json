@@ -1,0 +1,52 @@
+{
+  "entities": {
+    "chats": {
+      "title": "Chats",
+      "description": "Active and archived customer chat conversations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Chat unique identifier" },
+        "customerId": { "type": "string", "description": "Customer unique identifier" },
+        "customer": { "type": "object", "description": "Customer metadata including phone and IP" },
+        "department": { "type": "string", "description": "Assigned support department" },
+        "status": { "type": "string", "description": "Chat status (open, closed, pending, unassigned)" },
+        "priority": { "type": "string", "description": "Chat priority level" },
+        "subject": { "type": "string", "description": "Subject line or initial inquiry" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last update" },
+        "lastMessage": { "type": "string", "description": "Last message text snippet" },
+        "lastMessageTime": { "type": "string", "description": "Relative or formatted time of last message" },
+        "unreadCountCustomer": { "type": "number", "description": "Unread count for customer" },
+        "unreadCountAgent": { "type": "number", "description": "Unread count for agent" }
+      },
+      "required": ["id", "customerId", "customer", "status", "updatedAt"]
+    },
+    "messages": {
+      "title": "Messages",
+      "description": "Chat messages between customers and agents",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Message unique identifier" },
+        "chatId": { "type": "string", "description": "Associated chat ID" },
+        "senderRole": { "type": "string", "description": "Role of sender (customer, agent, bot, system)" },
+        "senderName": { "type": "string", "description": "Display name of sender" },
+        "senderAvatar": { "type": "string", "description": "Avatar URL of sender" },
+        "content": { "type": "string", "description": "Text content of the message" },
+        "timestamp": { "type": "string", "description": "Timestamp string" },
+        "readStatus": { "type": "string", "description": "Message status (sent, delivered, read)" }
+      },
+      "required": ["id", "chatId", "senderRole", "content"]
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "App settings and configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Settings key or ID" },
+        "widgetConfig": { "type": "object", "description": "Widget visual and behavior configuration" },
+        "quickReplies": { "type": "array", "description": "List of predefined quick reply templates" }
+      },
+      "required": ["id"]
+    }
+  }
+}
