@@ -1,6 +1,7 @@
 import React from 'react';
-import { MessageSquare, ExternalLink, Globe, Megaphone, Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
+import { MessageSquare, ExternalLink, Globe, Megaphone, Sparkles, ArrowRight, ShieldCheck, Volume2, Bell, AlertTriangle, Info } from 'lucide-react';
 import { WidgetConfig } from '../types';
+import { NoticeHeaderBar } from './CustomerWidget/NoticeHeaderBar';
 
 interface StorefrontPreviewProps {
   widgetConfig?: WidgetConfig;
@@ -15,22 +16,32 @@ export const StorefrontPreview: React.FC<StorefrontPreviewProps> = ({ widgetConf
       : []
   ).filter((p) => p.enabled && p.imageUrl);
 
+  const notice = widgetConfig?.noticeHeader;
+
   return (
-    <div id="storefront-preview-canvas" className="flex-1 bg-slate-950 text-slate-300 overflow-y-auto relative flex flex-col items-center p-4 sm:p-8 space-y-8">
+    <div id="storefront-preview-canvas" className="flex-1 bg-slate-950 text-slate-300 overflow-y-auto relative flex flex-col items-center">
       
-      {/* Subtle Background Grid Pattern */}
-      <div className="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:24px_24px] opacity-25 pointer-events-none" />
+      {/* 1. Top Scrolling Notice Bar for User Dashboard */}
+      {notice && notice.enabled && (
+        <div className="w-full sticky top-0 z-30 shadow-md">
+          <NoticeHeaderBar notice={notice} />
+        </div>
+      )}
 
-      {/* Main Top Header Canvas */}
-      <div className="relative z-10 w-full max-w-4xl text-center space-y-2 pt-2 text-[10px]">
-        <h1 className="text-xs sm:text-sm font-extrabold text-white tracking-tight">
-          ওয়েবসাইট সার্ভিস ও অফিশিয়াল লিংকসমূহ
-        </h1>
+      <div className="w-full flex-1 flex flex-col items-center p-4 sm:p-8 space-y-6 max-w-6xl relative">
+        {/* Subtle Background Grid Pattern */}
+        <div className="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:24px_24px] opacity-25 pointer-events-none" />
 
-        <p className="text-[10px] text-slate-400 max-w-2xl mx-auto leading-relaxed">
-          আমাদের অফিশিয়াল ওয়েবসাইট এবং স্পনসরড সার্ভিস পোর্টালসমূহ নিচে দেওয়া হলো। সরাসরি ভিজিট করতে বাটনে ক্লিক করুন। সহায়তার জন্য চ্যাট উইজেট ব্যবহার করুন।
-        </p>
-      </div>
+        {/* Main Top Header Canvas */}
+        <div className="relative z-10 w-full max-w-4xl text-center space-y-2 pt-1 text-[10px]">
+          <h1 className="text-sm sm:text-base font-extrabold text-white tracking-tight">
+            ওয়েবসাইট সার্ভিস ও অফিশিয়াল লিংকসমূহ
+          </h1>
+
+          <p className="text-xs text-slate-400 max-w-2xl mx-auto leading-relaxed">
+            আমাদের অফিশিয়াল ওয়েবসাইট এবং স্পনসরড সার্ভিস পোর্টালসমূহ নিচে দেওয়া হলো। সরাসরি ভিজিট করতে বাটনে ক্লিক করুন। সহায়তার জন্য চ্যাট উইজেট ব্যবহার করুন।
+          </p>
+        </div>
 
       {/* Promoted Websites Section */}
       {activePromos.length > 0 ? (
@@ -111,24 +122,25 @@ export const StorefrontPreview: React.FC<StorefrontPreviewProps> = ({ widgetConf
         </div>
       )}
 
-      {/* Live Chat Notice Bar */}
-      <div className="relative z-10 w-full max-w-xl bg-slate-900/80 border border-slate-800 backdrop-blur-md rounded-2xl p-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shadow-lg text-center sm:text-left text-[10px]">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
-            <MessageSquare className="w-4 h-4" />
+        {/* Live Chat Notice Bar */}
+        <div className="relative z-10 w-full max-w-xl bg-slate-900/80 border border-slate-800 backdrop-blur-md rounded-2xl p-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shadow-lg text-center sm:text-left text-[10px]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+              <MessageSquare className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-[10px] font-bold text-white">সরাসরি লাইভ চ্যাট সহায়তা (Live Support)</h4>
+              <p className="text-[10px] text-slate-400">যেকোনো তথ্যের জন্য ডানদিকের নিচে চ্যাট আইকনে ক্লিক করুন</p>
+            </div>
           </div>
-          <div>
-            <h4 className="text-[10px] font-bold text-white">সরাসরি লাইভ চ্যাট সহায়তা (Live Support)</h4>
-            <p className="text-[10px] text-slate-400">যেকোনো তথ্যের জন্য ডানদিকের নিচে চ্যাট আইকনে ক্লিক করুন</p>
+
+          <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 py-1 px-2.5 rounded-lg shrink-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span>অনলাইন সাপোর্ট চ্যাট সক্রিয়</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 py-1 px-2.5 rounded-lg shrink-0">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-          <span>অনলাইন সাপোর্ট চ্যাট সক্রিয়</span>
-        </div>
       </div>
-
     </div>
   );
 };

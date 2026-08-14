@@ -937,7 +937,7 @@ export default function App() {
     // Direct Firestore sync
     syncMessageToFirestore(newMsg);
 
-    // Telegram notification on customer message
+    // Telegram notification on customer message with photo support
     sendTelegramNotification(
       {
         type: 'new_message',
@@ -947,6 +947,9 @@ export default function App() {
         problemIssue: currentChat?.problemIssue,
         chatId: customerChatId,
         messageText: displayMsg,
+        photoUrl: attachments && attachments.length > 0 ? attachments[0].url : undefined,
+        photoName: attachments && attachments.length > 0 ? attachments[0].name : undefined,
+        attachments: attachments,
       },
       widgetConfig
     );

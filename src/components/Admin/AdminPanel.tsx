@@ -45,7 +45,10 @@ import {
   Minimize2,
   Volume2,
   Bell,
-  Info
+  Info,
+  FileText,
+  Download,
+  ZoomIn
 } from 'lucide-react';
 import {
   Agent,
@@ -129,9 +132,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
 
-  // Font Size Management (User requested 8px default)
+  // Font Size Management (User requested 7px default)
   const [adminFontSize, setAdminFontSize] = useState<string>(() => {
-    return localStorage.getItem('novachat_admin_fontsize') || '8px';
+    return localStorage.getItem('novachat_admin_fontsize') || '7px';
   });
 
   const handleSetFontSize = (size: string) => {
@@ -145,6 +148,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Full Page Chat & User Info Visibility
   const [isChatFullScreen, setIsChatFullScreen] = useState(false);
   const [hideCustomerDetails, setHideCustomerDetails] = useState(false);
+  const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
 
   // Telegram Notifications State
   const [telegramBotToken, setTelegramBotToken] = useState(widgetConfig.telegramBotToken || '');
@@ -723,7 +727,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         WebkitOverflowScrolling: 'touch',
         touchAction: 'pan-y'
       }}
-      className="w-full h-full flex-1 bg-slate-50 overflow-y-auto overscroll-contain p-2 sm:p-4 text-[8px] admin-compact-mode pb-28 select-text"
+      className="w-full h-full flex-1 bg-slate-50 overflow-y-auto overscroll-contain p-2 sm:p-4 text-[7px] admin-compact-mode pb-28 select-text"
     >
       <div className="max-w-6xl mx-auto space-y-4">
         
@@ -736,24 +740,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div>
               <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 flex-wrap">
                 <span>নোভাচ্যাট অ্যাডমিন কন্ট্রোল প্যানেল</span>
-                <span className="text-[8px] bg-emerald-500 text-slate-950 font-black uppercase px-1.5 py-0.2 rounded-full">
+                <span className="text-[7px] bg-emerald-500 text-slate-950 font-black uppercase px-1.5 py-0.2 rounded-full">
                   সক্রিয়
                 </span>
-                <span className="text-[8px] bg-blue-500/30 text-blue-300 font-mono px-1.5 py-0.2 rounded border border-blue-400/30">
+                <span className="text-[7px] bg-blue-500/30 text-blue-300 font-mono px-1.5 py-0.2 rounded border border-blue-400/30">
                   Font: {adminFontSize}
                 </span>
               </h2>
-              <p className="text-[8px] sm:text-[9px] text-slate-400 mt-0.5">
+              <p className="text-[7px] sm:text-[8px] text-slate-400 mt-0.5">
                 লগইন একাউন্ট: <span className="text-blue-300 font-semibold">{adminEmail}</span>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
-            {/* Font Size Selector (User requested 8px) */}
-            <div className="flex items-center bg-slate-800/80 border border-slate-700/80 rounded-lg p-0.5 text-[8px]">
+            {/* Font Size Selector (User requested 7px) */}
+            <div className="flex items-center bg-slate-800/80 border border-slate-700/80 rounded-lg p-0.5 text-[7px]">
               <span className="text-slate-400 px-1.5 font-bold">ফন্ট:</span>
-              {(['8px', '9px', '10px', '11px'] as const).map((sz) => (
+              {(['7px', '8px', '9px', '10px'] as const).map((sz) => (
                 <button
                   key={sz}
                   onClick={() => handleSetFontSize(sz)}
@@ -1443,6 +1447,65 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <div className="whitespace-pre-wrap font-sans text-xs leading-relaxed">
                               {m.content}
                             </div>
+
+                            {/* Attachments / Photos Preview */}
+                            {m.attachments && m.attachments.length > 0 && (
+                              <div className="mt-2 space-y-1.5 pt-1.5 border-t border-slate-200/50">
+                                {m.attachments.map((att, attIdx) => (
+                                  <div key={attIdx} className="rounded-xl overflow-hidden border border-slate-200/60 bg-slate-50">
+                                    {att.type === 'image' || att.url?.startsWith('data:image') || att.url?.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
+                                      <div className="relative group">
+                                        <img
+                                          src={att.url}
+                                          alt={att.name || 'ছবি'}
+                                          onClick={() => setPreviewImageModal(att.url)}
+                                          className="max-h-60 w-full object-cover cursor-pointer hover:opacity-95 transition rounded-xl"
+                                        />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => setPreviewImageModal(att.url)}
+                                            className="px-2.5 py-1 bg-white text-slate-900 font-bold text-xs rounded-lg shadow-md flex items-center gap-1 hover:bg-slate-100 cursor-pointer"
+                                          >
+                                            <ZoomIn className="w-3.5 h-3.5" />
+                                            <span>বড় করে দেখুন</span>
+                                          </button>
+                                          <a
+                                            href={att.url}
+                                            download={att.name || 'photo.jpg'}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-1.5 bg-slate-900 text-white rounded-lg shadow-md hover:bg-slate-800"
+                                            title="ডাউনলোড করুন"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <Download className="w-3.5 h-3.5" />
+                                          </a>
+                                        </div>
+                                        <div className="p-1.5 bg-slate-900/90 text-white text-[10px] flex items-center justify-between">
+                                          <span className="truncate max-w-[150px] font-mono">📷 {att.name || 'ছবি'}</span>
+                                          <span className="text-slate-400">{att.size || ''}</span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <a
+                                        href={att.url}
+                                        download={att.name}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="p-2.5 bg-white text-slate-800 hover:text-blue-600 flex items-center justify-between gap-2 text-xs transition"
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                                          <span className="truncate font-medium">{att.name}</span>
+                                        </div>
+                                        <Download className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             {isCustomer && (
                               <div className="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-slate-100">
                                 <span className="text-[8px] text-slate-400">{m.timestamp}</span>
@@ -3411,6 +3474,49 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Lightbox Modal for Large Image Preview in Admin Panel */}
+        {previewImageModal && (
+          <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-700 flex flex-col">
+              {/* Header */}
+              <div className="p-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-white">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-blue-400" />
+                  <span className="font-bold text-xs">📷 ছবি বড় করে দেখা হচ্ছে (Photo Preview)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={previewImageModal}
+                    download="customer_photo.jpg"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>ডাউনলোড</span>
+                  </a>
+                  <button
+                    onClick={() => setPreviewImageModal(null)}
+                    className="p-1.5 bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white rounded-lg transition"
+                    title="বন্ধ করুন"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Photo Area */}
+              <div className="p-2 overflow-auto max-h-[80vh] flex items-center justify-center bg-black/50">
+                <img
+                  src={previewImageModal}
+                  alt="Customer Attachment Preview"
+                  className="max-h-[75vh] max-w-full rounded-xl object-contain shadow-2xl"
+                />
+              </div>
             </div>
           </div>
         )}
