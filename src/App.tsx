@@ -407,30 +407,41 @@ export default function App() {
 
   const fetchInitialData = async () => {
     try {
-      const [chatsRes, messagesRes, agentsRes, cannedRes, visitorsRes, settingsRes, blockedRes] = await Promise.all([
-        fetch('/api/chats'),
-        fetch('/api/messages'),
-        fetch('/api/agents'),
-        fetch('/api/canned-responses'),
-        fetch('/api/visitors'),
-        fetch('/api/settings'),
-        fetch('/api/blocked-users'),
+      const results = await Promise.allSettled([
+        fetch('/api/chats').then((r) => (r.ok ? r.json() : null)),
+        fetch('/api/messages').then((r) => (r.ok ? r.json() : null)),
+        fetch('/api/agents').then((r) => (r.ok ? r.json() : null)),
+        fetch('/api/canned-responses').then((r) => (r.ok ? r.json() : null)),
+        fetch('/api/visitors').then((r) => (r.ok ? r.json() : null)),
+        fetch('/api/settings').then((r) => (r.ok ? r.json() : null)),
+        fetch('/api/blocked-users').then((r) => (r.ok ? r.json() : null)),
       ]);
 
-      if (chatsRes.ok) setChats(await chatsRes.json());
-      if (messagesRes.ok) {
-        const msgs = await messagesRes.json();
-        if (msgs && typeof msgs === 'object') {
-          setMessages(msgs);
-        }
+      const [chatsRes, messagesRes, agentsRes, cannedRes, visitorsRes, settingsRes, blockedRes] = results;
+
+      if (chatsRes.status === 'fulfilled' && chatsRes.value && Array.isArray(chatsRes.value) && chatsRes.value.length > 0) {
+        setChats(chatsRes.value);
       }
-      if (agentsRes.ok) setAgents(await agentsRes.json());
-      if (cannedRes.ok) setCannedResponses(await cannedRes.json());
-      if (visitorsRes.ok) setLiveVisitors(await visitorsRes.json());
-      if (settingsRes.ok) setWidgetConfig(await settingsRes.json());
-      if (blockedRes.ok) setBlockedUsers(await blockedRes.json());
-    } catch (e) {
-      console.warn('REST API Sync fallback to local mock state:', e);
+      if (messagesRes.status === 'fulfilled' && messagesRes.value && typeof messagesRes.value === 'object') {
+        setMessages(messagesRes.value);
+      }
+      if (agentsRes.status === 'fulfilled' && agentsRes.value && Array.isArray(agentsRes.value)) {
+        setAgents(agentsRes.value);
+      }
+      if (cannedRes.status === 'fulfilled' && cannedRes.value && Array.isArray(cannedRes.value)) {
+        setCannedResponses(cannedRes.value);
+      }
+      if (visitorsRes.status === 'fulfilled' && visitorsRes.value && Array.isArray(visitorsRes.value)) {
+        setLiveVisitors(visitorsRes.value);
+      }
+      if (settingsRes.status === 'fulfilled' && settingsRes.value && typeof settingsRes.value === 'object') {
+        setWidgetConfig(settingsRes.value);
+      }
+      if (blockedRes.status === 'fulfilled' && blockedRes.value && Array.isArray(blockedRes.value)) {
+        setBlockedUsers(blockedRes.value);
+      }
+    } catch {
+      // Seamlessly fall back to Firestore Realtime Listeners and LocalStorage
     }
   };
 

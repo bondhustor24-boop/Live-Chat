@@ -1216,186 +1216,182 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   }`}
                 >
                   {/* Mobile Back Button Bar */}
-                  <div className="md:hidden p-2 bg-slate-900 text-white flex items-center justify-between">
+                  <div className="md:hidden px-3 py-1.5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
                     <button
                       onClick={() => setMobileChatView('list')}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition"
+                      className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] font-bold flex items-center gap-1 transition"
                     >
-                      <ChevronLeft className="w-4 h-4" />
+                      <ChevronLeft className="w-3.5 h-3.5" />
                       <span>← কাস্টমার তালিকায় ফিরে যান</span>
                     </button>
-                    <span className="text-[10px] font-mono text-amber-300">
+                    <span className="text-[10px] font-mono text-amber-300 font-bold">
                       ID: #{activeChatSession.id}
                     </span>
                   </div>
 
-                  {/* Chat Session Header */}
-                  <div className="p-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <img
-                        src={activeChatSession.customer.avatar}
-                        alt=""
-                        className="w-10 h-10 rounded-full object-cover aspect-square ring-2 ring-slate-100 shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-bold text-slate-900 text-sm truncate">
+                  {/* Chat Session Header - Super Compact & Clean */}
+                  <div className="px-2.5 py-1 bg-white border-b border-slate-200 shrink-0 shadow-2xs">
+                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                      {/* Left: Customer Info Chip */}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <img
+                          src={activeChatSession.customer.avatar}
+                          alt=""
+                          className="w-6 h-6 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                        />
+                        <div className="flex items-center gap-1 flex-wrap min-w-0">
+                          <span className="font-bold text-slate-900 text-[11px] truncate">
                             {maskUserInfo(activeChatSession.customer.name, 'name')}
-                          </h3>
+                          </span>
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(activeChatSession.id);
                               alert(`Chat ID কপি করা হয়েছে: ${activeChatSession.id}`);
                             }}
                             title="Chat ID কপি করুন"
-                            className="font-mono text-[10px] bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-0.5 rounded-md flex items-center gap-1 cursor-pointer"
+                            className="font-mono text-[8px] bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-1 py-0.2 rounded flex items-center gap-0.5 cursor-pointer shrink-0"
                           >
                             <span>#{activeChatSession.id}</span>
-                            <Copy className="w-2.5 h-2.5 opacity-70" />
+                            <Copy className="w-2 h-2 opacity-70" />
                           </button>
-                          <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-full">
-                            এডমিন: {currentAdminProfile?.name || activeChatSession.assignedAgentName || 'Saju Ahmed'}
+                          <span className="text-[8px] bg-blue-50 text-blue-700 border border-blue-200 font-medium px-1 py-0.2 rounded shrink-0">
+                            {currentAdminProfile?.name || activeChatSession.assignedAgentName || 'Saju Ahmed'}
                           </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500 truncate mt-0.5 flex-wrap">
-                          <span className="font-mono text-blue-700 font-bold">
-                            📞 {maskUserInfo(activeChatSession.customer.phone || '01712345678', 'phone')}
-                          </span>
-                          <span>•</span>
-                          <span className="font-mono text-emerald-700 font-bold">
-                            🌐 IP: {maskUserInfo(activeChatSession.customer.ipAddress || '103.205.132.42', 'ip')}
-                          </span>
-                          <span>•</span>
-                          <span className="bg-slate-100 px-1.5 py-0.2 rounded text-[10px] font-semibold text-slate-700">
-                            {activeChatSession.department}
-                          </span>
+                          {activeChatSession.customer.phone && (
+                            <span className="font-mono text-blue-700 font-bold bg-blue-50/80 px-1 py-0.2 rounded text-[8px] border border-blue-100 hidden sm:inline">
+                              📞 {maskUserInfo(activeChatSession.customer.phone, 'phone')}
+                            </span>
+                          )}
+                          {activeChatSession.customer.ipAddress && (
+                            <span className="font-mono text-emerald-700 font-medium bg-emerald-50/80 px-1 py-0.2 rounded text-[8px] border border-emerald-100 hidden md:inline">
+                              🌐 {maskUserInfo(activeChatSession.customer.ipAddress, 'ip')}
+                            </span>
+                          )}
                           {activeChatSession.problemIssue && (
-                            <>
-                              <span>•</span>
-                              <span className="bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded text-[10px] font-bold">
-                                📌 {activeChatSession.problemIssue}
-                              </span>
-                            </>
+                            <span className="bg-amber-50 text-amber-900 border border-amber-200 px-1 py-0.2 rounded text-[8px] font-bold hidden lg:inline">
+                              📌 {activeChatSession.problemIssue}
+                            </span>
                           )}
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-2 text-xs flex-wrap">
-                      {/* User Info Hide/Show Toggle */}
-                      <button
-                        onClick={() => setHideCustomerDetails(!hideCustomerDetails)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
-                          hideCustomerDetails
-                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                        }`}
-                        title="গ্রাহকের নাম, ফোন ও আইপি এড্রেস লুকান অথবা প্রদর্শন করুন"
-                      >
-                        {hideCustomerDetails ? <EyeOff className="w-3.5 h-3.5 text-amber-700" /> : <Eye className="w-3.5 h-3.5 text-slate-700" />}
-                        <span>{hideCustomerDetails ? 'তথ্য দেখান' : 'তথ্য লুকান'}</span>
-                      </button>
-
-                      {/* Phone Direct SMS Trigger */}
-                      {activeChatSession.customer.phone && (
-                        <a
-                          href={`sms:${activeChatSession.customer.phone}?body=${encodeURIComponent(`আসসালামু আলাইকুম ${activeChatSession.customer.name}, নোভাচ্যাট সাপোর্ট থেকে যোগাযোগ করা হচ্ছে (টিকিট #${activeChatSession.id})`)}`}
-                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
-                          title="মোবাইলে সরাসরি SMS অ্যাপের মাধ্যমে টেক্সট পাঠান"
-                        >
-                          <Smartphone className="w-3.5 h-3.5" />
-                          <span>SMS পাঠান</span>
-                        </a>
-                      )}
-
-                      {/* Phone Direct Call Trigger */}
-                      {activeChatSession.customer.phone && (
-                        <a
-                          href={`tel:${activeChatSession.customer.phone}`}
-                          className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
-                          title="সরাসরি কল দিন"
-                        >
-                          <Phone className="w-3.5 h-3.5" />
-                          <span>কল</span>
-                        </a>
-                      )}
-
-                      {/* Full Page Chat Toggle Button */}
-                      <button
-                        onClick={() => setIsChatFullScreen(!isChatFullScreen)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs ${
-                          isChatFullScreen
-                            ? 'bg-amber-500 text-slate-950 font-black'
-                            : 'bg-slate-800 hover:bg-slate-700 text-white'
-                        }`}
-                        title={isChatFullScreen ? 'ছোট ভিউতে ফিরে যান' : 'চ্যাট ফুল পেজে ওপেন করুন'}
-                      >
-                        {isChatFullScreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                        <span>{isChatFullScreen ? 'ছোট স্ক্রিন' : 'ফুল পেজ ভিউ'}</span>
-                      </button>
-
-                      <span className="text-slate-500 ml-1">স্ট্যাটাস:</span>
-                      <select
-                        value={activeChatSession.status}
-                        onChange={(e) => onChangeStatus && onChangeStatus(activeChatSession.id, e.target.value as any)}
-                        className="px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none"
-                      >
-                        <option value="active">অনলাইন (Active)</option>
-                        <option value="unassigned">অপেক্ষমাণ (Unassigned)</option>
-                        <option value="resolved">সমাধানকৃত/ক্লোজড (Resolved)</option>
-                        <option value="closed">বন্ধ (Closed)</option>
-                      </select>
-
-                      {/* Close Chat Button */}
-                      {activeChatSession.status !== 'resolved' && activeChatSession.status !== 'closed' ? (
+                      {/* Right: Actions Toolbar (Compact inline buttons) */}
+                      <div className="flex items-center gap-1 shrink-0 ml-auto">
+                        {/* User Info Hide/Show Toggle */}
                         <button
-                          onClick={() => onChangeStatus && onChangeStatus(activeChatSession.id, 'resolved')}
-                          className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                          title="চ্যাট সমাপন করুন (Close Chat)"
+                          onClick={() => setHideCustomerDetails(!hideCustomerDetails)}
+                          className={`px-1.5 py-0.5 rounded text-[8px] font-semibold transition flex items-center gap-0.5 cursor-pointer border ${
+                            hideCustomerDetails
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                          }`}
+                          title="গ্রাহকের তথ্য লুকান অথবা দেখান"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>ক্লোজ করুন</span>
+                          {hideCustomerDetails ? <EyeOff className="w-2.5 h-2.5 text-amber-700" /> : <Eye className="w-2.5 h-2.5 text-slate-600" />}
+                          <span>{hideCustomerDetails ? 'দেখান' : 'লুকান'}</span>
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => onChangeStatus && onChangeStatus(activeChatSession.id, 'active')}
-                          className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                          title="চ্যাট পুনরায় ওপেন করুন"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          <span>পুনরায় ওপেন</span>
-                        </button>
-                      )}
 
-                      {/* Block / Unblock User Button */}
-                      {activeChatSession.isBlocked ? (
+                        {/* Phone Direct SMS Trigger */}
+                        {activeChatSession.customer.phone && (
+                          <a
+                            href={`sms:${activeChatSession.customer.phone}?body=${encodeURIComponent(`আসসালামু আলাইকুম ${activeChatSession.customer.name}, নোভাচ্যাট সাপোর্ট থেকে যোগাযোগ করা হচ্ছে (টিকিট #${activeChatSession.id})`)}`}
+                            className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[8px] font-bold transition flex items-center gap-0.5 cursor-pointer shadow-2xs"
+                            title="মোবাইলে SMS পাঠান"
+                          >
+                            <Smartphone className="w-2.5 h-2.5" />
+                            <span>SMS</span>
+                          </a>
+                        )}
+
+                        {/* Phone Direct Call Trigger */}
+                        {activeChatSession.customer.phone && (
+                          <a
+                            href={`tel:${activeChatSession.customer.phone}`}
+                            className="px-1.5 py-0.5 bg-sky-600 hover:bg-sky-700 text-white rounded text-[8px] font-bold transition flex items-center gap-0.5 cursor-pointer shadow-2xs"
+                            title="সরাসরি কল দিন"
+                          >
+                            <Phone className="w-2.5 h-2.5" />
+                            <span>কল</span>
+                          </a>
+                        )}
+
+                        {/* Full Page Chat Toggle Button */}
                         <button
-                          onClick={() => onUnblockUser && onUnblockUser(activeChatSession.id)}
-                          className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                          title="ইউজার আনব্লক করুন"
+                          onClick={() => setIsChatFullScreen(!isChatFullScreen)}
+                          className={`px-1.5 py-0.5 rounded text-[8px] font-bold transition flex items-center gap-0.5 cursor-pointer shadow-2xs ${
+                            isChatFullScreen
+                              ? 'bg-amber-500 text-slate-950 font-black'
+                              : 'bg-slate-800 hover:bg-slate-700 text-white'
+                          }`}
+                          title={isChatFullScreen ? 'ছোট ভিউ' : 'বড় স্ক্রিন'}
                         >
-                          <ShieldCheck className="w-3.5 h-3.5" />
-                          <span>আনব্লক</span>
+                          {isChatFullScreen ? <Minimize2 className="w-2.5 h-2.5" /> : <Maximize2 className="w-2.5 h-2.5" />}
+                          <span>{isChatFullScreen ? 'ছোট' : 'বড়'}</span>
                         </button>
-                      ) : (
-                        <button
-                          onClick={() =>
-                            onBlockUser &&
-                            onBlockUser(
-                              activeChatSession.id,
-                              activeChatSession.customer.phone,
-                              activeChatSession.customer.ipAddress,
-                              activeChatSession.customer.name,
-                              'লাইভ চ্যাট উইন্ডো থেকে ব্লক করা হয়েছে'
-                            )
-                          }
-                          className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                          title="এই গ্রাহককে ব্লকলিস্টে যোগ করুন"
+
+                        {/* Status Select */}
+                        <select
+                          value={activeChatSession.status}
+                          onChange={(e) => onChangeStatus && onChangeStatus(activeChatSession.id, e.target.value as any)}
+                          className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded text-[8px] font-bold text-slate-800 focus:outline-none cursor-pointer"
                         >
-                          <Ban className="w-3.5 h-3.5" />
-                          <span>ব্লক</span>
-                        </button>
-                      )}
+                          <option value="active">অনলাইন</option>
+                          <option value="unassigned">অপেক্ষমাণ</option>
+                          <option value="resolved">সমাধানকৃত</option>
+                          <option value="closed">বন্ধ</option>
+                        </select>
+
+                        {/* Close Chat Button */}
+                        {activeChatSession.status !== 'resolved' && activeChatSession.status !== 'closed' ? (
+                          <button
+                            onClick={() => onChangeStatus && onChangeStatus(activeChatSession.id, 'resolved')}
+                            className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[8px] font-bold transition flex items-center gap-0.5 cursor-pointer"
+                            title="চ্যাট সমাপন করুন"
+                          >
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            <span>ক্লোজ</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => onChangeStatus && onChangeStatus(activeChatSession.id, 'active')}
+                            className="px-1.5 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[8px] font-bold transition flex items-center gap-0.5 cursor-pointer"
+                            title="চ্যাট পুনরায় ওপেন করুন"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" />
+                            <span>ওপেন</span>
+                          </button>
+                        )}
+
+                        {/* Block / Unblock User Button */}
+                        {activeChatSession.isBlocked ? (
+                          <button
+                            onClick={() => onUnblockUser && onUnblockUser(activeChatSession.id)}
+                            className="px-1.5 py-0.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded text-[8px] font-bold transition flex items-center gap-0.5 cursor-pointer"
+                            title="ইউজার আনব্লক করুন"
+                          >
+                            <ShieldCheck className="w-2.5 h-2.5" />
+                            <span>আনব্লক</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() =>
+                              onBlockUser &&
+                              onBlockUser(
+                                activeChatSession.id,
+                                activeChatSession.customer.phone,
+                                activeChatSession.customer.ipAddress,
+                                activeChatSession.customer.name,
+                                'লাইভ চ্যাট উইন্ডো থেকে ব্লক করা হয়েছে'
+                              )
+                            }
+                            className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[8px] font-bold transition flex items-center gap-0.5 cursor-pointer"
+                            title="এই গ্রাহককে ব্লকলিস্টে যোগ করুন"
+                          >
+                            <Ban className="w-2.5 h-2.5" />
+                            <span>ব্লক</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1524,41 +1520,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <div ref={chatMessagesEndRef} />
                   </div>
 
-                  {/* Quick Reply Shortcuts */}
-                  <div className="px-3 py-1.5 bg-slate-100/80 border-t border-slate-200 flex items-center gap-1.5 overflow-x-auto text-[11px]">
-                    <span className="font-bold text-slate-500 shrink-0">দ্রুত উত্তর:</span>
+                  {/* Quick Reply Shortcuts - Ultra Compact */}
+                  <div className="px-2.5 py-1 bg-slate-100/90 border-t border-slate-200 flex items-center gap-1 overflow-x-auto text-[9px]">
+                    <span className="font-bold text-slate-500 shrink-0 text-[8px]">উত্তর:</span>
                     {[
-                      'আসসালামু আলাইকুম! আপনাকে কীভাবে সাহায্য করতে পারি?',
+                      'আসসালামু আলাইকুম! কীভাবে সাহায্য করতে পারি?',
                       'আপনার তথ্য গুগল শিটে সংরক্ষিত হয়েছে।',
                       'আপনার পেমেন্ট রিসিভ করা হয়েছে, ধন্যবাদ!',
-                      'আমাদের টিমের সদস্য আপনার সাথে যোগাযোগ করবে।'
+                      'টিমের সদস্য দ্রুত যোগাযোগ করবে।'
                     ].map((txt, idx) => (
                       <button
                         key={idx}
                         onClick={() => handleCannedInsert(txt)}
-                        className="px-2.5 py-1 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-medium rounded-lg border border-slate-200 whitespace-nowrap transition shadow-2xs"
+                        className="px-2 py-0.5 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-medium rounded border border-slate-200 whitespace-nowrap transition shadow-2xs text-[8px]"
                       >
                         {txt}
                       </button>
                     ))}
                   </div>
 
-                  {/* Admin Reply Input */}
-                  <form onSubmit={handleSendAdminSubmit} className="p-3 bg-white border-t border-slate-200 space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 font-medium">
+                  {/* Admin Reply Input - Ultra Compact */}
+                  <form onSubmit={handleSendAdminSubmit} className="p-2 bg-white border-t border-slate-200 space-y-1.5">
+                    <div className="flex items-center justify-between text-[8px]">
+                      <label className="flex items-center gap-1 cursor-pointer text-slate-600 font-medium">
                         <input
                           type="checkbox"
                           checked={adminIsNote}
                           onChange={(e) => setAdminIsNote(e.target.checked)}
-                          className="rounded text-blue-600 focus:ring-0"
+                          className="w-3 h-3 rounded text-blue-600 focus:ring-0"
                         />
-                        <span>ইন্টারনাল নোট হিসেবে পোস্ট করুন</span>
+                        <span>ইন্টারনাল নোট</span>
                       </label>
-                      <span className="text-[10px] text-slate-400">এন্টার চাপলে মেসেজ কাস্টমারের কাছে লাইভ চলে যাবে</span>
+                      <span className="text-[8px] text-slate-400">এন্টার চাপলে লাইভ যাবে</span>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-1.5">
                       <input
                         type="text"
                         value={adminMessageText}
@@ -1566,16 +1562,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         placeholder={
                           adminIsNote
                             ? 'টিমের জন্য ইন্টারনাল নোট লিখুন...'
-                            : `মেসেজ লিখুন (কাস্টমার ID: ${activeChatSession.id})...`
+                            : `মেসেজ লিখুন (ID: ${activeChatSession.id})...`
                         }
-                        className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                        className="flex-1 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[9px] text-slate-900 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
                       />
                       <button
                         type="submit"
                         disabled={!adminMessageText.trim()}
-                        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold rounded-xl flex items-center gap-1.5 transition shadow-sm shrink-0"
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold rounded-lg flex items-center gap-1 transition shadow-2xs text-[9px] shrink-0"
                       >
-                        <Send className="w-4 h-4" />
+                        <Send className="w-3 h-3" />
                         <span>পাঠান</span>
                       </button>
                     </div>
