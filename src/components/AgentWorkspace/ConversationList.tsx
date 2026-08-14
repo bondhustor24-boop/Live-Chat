@@ -48,7 +48,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   });
 
   return (
-    <div id="agent-inbox-pane" className="w-80 lg:w-96 border-r border-slate-200 bg-white flex flex-col h-full shrink-0">
+    <div id="agent-inbox-pane" className="w-full border-r border-slate-200 bg-white flex flex-col h-full shrink-0">
       
       {/* Inbox Top Search & Filters */}
       <div className="p-3.5 border-b border-slate-200 space-y-3 bg-slate-50/50">

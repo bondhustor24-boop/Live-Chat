@@ -1564,14 +1564,16 @@ export default function App() {
               />
             </div>
 
-            <CustomerSidebar
-              chat={selectedChat}
-              messages={currentChatMessages}
-              onUpdateCustomerMeta={handleUpdateCustomerMeta}
-              onBlockUser={handleBlockUser}
-              onUnblockUser={handleUnblockUser}
-              onDeleteChat={handleDeleteChat}
-            />
+            <div className="hidden xl:block h-full shrink-0">
+              <CustomerSidebar
+                chat={selectedChat}
+                messages={currentChatMessages}
+                onUpdateCustomerMeta={handleUpdateCustomerMeta}
+                onBlockUser={handleBlockUser}
+                onUnblockUser={handleUnblockUser}
+                onDeleteChat={handleDeleteChat}
+              />
+            </div>
           </div>
         )}
 

@@ -179,16 +179,16 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
   return (
     <div id="agent-chat-main-area" className="flex-1 flex flex-col h-full bg-slate-50 relative overflow-hidden">
       
-      {/* Top Header Bar */}
-      <div className="p-3.5 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-2xs">
+      {/* Top Header Bar - Responsive & Clean */}
+      <div className="px-3 py-2 sm:px-4 sm:py-2.5 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0 shadow-2xs">
         
         {/* Customer info & Subject */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           {onBackToList && (
             <button
               onClick={onBackToList}
-              className="md:hidden p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 rounded-lg hover:bg-slate-200 transition shrink-0"
-              title="তালিকায় ফিরুন"
+              className="md:hidden p-1.5 text-slate-700 hover:text-slate-950 bg-slate-100 active:bg-slate-200 rounded-lg transition shrink-0 cursor-pointer"
+              title="তালিকায় ফিরে যান"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -197,14 +197,14 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
           <img
             src={chat.customer.avatar}
             alt={chat.customer.name}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover ring-2 ring-slate-100 shrink-0"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
           />
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-bold text-slate-900 text-sm truncate">{chat.customer.name}</h3>
-              <span className="font-mono text-[10px] bg-slate-900 text-amber-300 font-bold px-2 py-0.5 rounded-md border border-slate-700">
-                {chat.id}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="font-bold text-slate-900 text-xs sm:text-sm truncate">{chat.customer.name}</h3>
+              <span className="font-mono text-[9px] sm:text-[10px] bg-slate-900 text-amber-300 font-bold px-1.5 py-0.5 rounded border border-slate-700 shrink-0">
+                #{chat.id}
               </span>
               
               {/* Sentiment Indicator Badge */}
@@ -212,42 +212,50 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
                 const sentiment = analyzeChatSessionSentiment(messages, chat.lastMessage);
                 return (
                   <div
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-bold transition shadow-2xs ${sentiment.badgeClass}`}
+                    className={`inline-flex items-center gap-1 px-2 py-0.2 rounded-full border text-[10px] font-bold transition shrink-0 ${sentiment.badgeClass}`}
                     title={`কীওয়ার্ড সেন্টিমেন্ট বিশ্লেষণ (স্কোর: ${sentiment.score})`}
                   >
                     <span>{sentiment.emoji}</span>
-                    <span>{sentiment.labelBn}</span>
+                    <span className="hidden sm:inline">{sentiment.labelBn}</span>
                   </div>
                 );
               })()}
 
               <button
                 onClick={() => onToggleStar(chat.id)}
-                className="text-slate-400 hover:text-amber-400 transition"
+                className="text-slate-400 hover:text-amber-400 transition cursor-pointer p-0.5"
+                title="স্টার চিহ্নিত করুন"
               >
-                <Star className={`w-4 h-4 ${chat.isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
+                <Star className={`w-3.5 h-3.5 ${chat.isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
               </button>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500 truncate">
-              <span>📞 {chat.customer.phone || '01712345678'}</span>
-              <span>•</span>
-              <span>🌐 IP: {chat.customer.ipAddress || '103.205.132.42'}</span>
+
+            <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-slate-500 truncate mt-0.5">
+              {chat.customer.phone && (
+                <span className="font-mono font-medium text-blue-700">📞 {chat.customer.phone}</span>
+              )}
+              {chat.customer.ipAddress && (
+                <>
+                  <span className="hidden sm:inline">•</span>
+                  <span className="font-mono text-emerald-700 hidden sm:inline">🌐 IP: {chat.customer.ipAddress}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto flex-wrap">
           
           {/* Assigned Agent Dropdown */}
-          <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
-            <UserPlus className="w-3.5 h-3.5 text-slate-500" />
+          <div className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 sm:py-1 rounded-lg border border-slate-200 text-[11px] sm:text-xs">
+            <UserPlus className="w-3 h-3 text-slate-500 shrink-0" />
             <select
               value={chat.assignedAgentId || ''}
               onChange={(e) => onAssignAgent(chat.id, e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+              className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer text-[10px] sm:text-xs max-w-[100px] sm:max-w-[130px] truncate"
             >
-              <option value="">-- এজেন্ট নিয়োগ করুন --</option>
+              <option value="">-- এজেন্ট --</option>
               {agents.map((ag) => (
                 <option key={ag.id} value={ag.id}>
                   {ag.name}
@@ -260,7 +268,7 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
           <select
             value={chat.status}
             onChange={(e) => onChangeStatus(chat.id, e.target.value)}
-            className={`text-xs font-semibold px-2.5 py-1 rounded-lg border focus:outline-none cursor-pointer ${
+            className={`text-[10px] sm:text-xs font-semibold px-2 py-0.5 sm:py-1 rounded-lg border focus:outline-none cursor-pointer ${
               chat.status === 'active'
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 : chat.status === 'unassigned'
@@ -269,7 +277,7 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
             }`}
           >
             <option value="unassigned">অ্যাসাইন ছাড়া</option>
-            <option value="active">অনলাইন / সক্রিয়</option>
+            <option value="active">সক্রিয় (Active)</option>
             <option value="waiting">অপেক্ষমাণ</option>
             <option value="resolved">সমাধানকৃত</option>
           </select>
@@ -278,10 +286,11 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
           {chat.status !== 'resolved' && (
             <button
               onClick={() => onChangeStatus(chat.id, 'resolved')}
-              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg flex items-center gap-1 shadow-2xs transition"
+              className="px-2 sm:px-2.5 py-0.5 sm:py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-xs font-semibold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer"
+              title="সমাধান চিহ্নিত করুন"
             >
-              <CheckCircle className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">সমাধান চিহ্নিত করুন</span>
+              <CheckCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span className="hidden sm:inline">ক্লোজ</span>
             </button>
           )}
         </div>
@@ -457,34 +466,34 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
       )}
 
       {/* Reply Input Bar */}
-      <div className="p-3 bg-white border-t border-slate-200 shrink-0">
+      <div className="p-2 sm:p-3 bg-white border-t border-slate-200 shrink-0 space-y-2">
         
         {/* Toggle Reply Mode & Quick Helpers */}
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
           
-          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] sm:text-xs">
             <button
               type="button"
               onClick={() => setIsInternalNote(false)}
-              className={`px-3 py-1 rounded-md text-xs font-semibold transition ${
+              className={`px-2 sm:px-3 py-1 rounded-md font-semibold transition cursor-pointer ${
                 !isInternalNote ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              পাবলিক রিপ্লাই
+              পাবলিক
             </button>
             <button
               type="button"
               onClick={() => setIsInternalNote(true)}
-              className={`px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1 transition ${
+              className={`px-2 sm:px-3 py-1 rounded-md font-semibold flex items-center gap-1 transition cursor-pointer ${
                 isInternalNote ? 'bg-amber-500 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Lock className="w-3 h-3" />
-              <span>অভ্যন্তরীণ নোট (Whisper)</span>
+              <span>নোট (Whisper)</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap ml-auto">
             {/* Send Report Form Link */}
             <button
               type="button"
@@ -494,20 +503,21 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
                   false
                 );
               }}
-              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold rounded-lg border border-amber-200 flex items-center gap-1 transition cursor-pointer"
+              className="px-2 py-0.5 sm:py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[10px] sm:text-xs font-semibold rounded-lg border border-amber-200 flex items-center gap-1 transition cursor-pointer"
+              title="রিপোর্ট ফরম লিংক পাঠান"
             >
-              <ClipboardList className="w-3.5 h-3.5 text-amber-600" />
-              <span>📋 রিপোর্ট ফরম লিংক পাঠান</span>
+              <ClipboardList className="w-3 h-3 text-amber-700" />
+              <span className="hidden xs:inline">রিপোর্ট লিংক</span>
             </button>
 
             {/* Canned Responses Trigger */}
             <button
               type="button"
               onClick={() => setShowCannedModal(!showCannedModal)}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 flex items-center gap-1 transition"
+              className="px-2 py-0.5 sm:py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] sm:text-xs font-medium rounded-lg border border-slate-200 flex items-center gap-1 transition cursor-pointer"
             >
-              <Zap className="w-3.5 h-3.5 text-amber-500" />
-              <span>প্রস্তুতকৃত শর্টকাট (Canned)</span>
+              <Zap className="w-3 h-3 text-amber-500" />
+              <span>শর্টকাট</span>
             </button>
 
             {/* AI Suggest Button */}
@@ -515,14 +525,14 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
               type="button"
               onClick={handleFetchAiSuggestions}
               disabled={loadingAi}
-              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-medium rounded-lg border border-indigo-200 flex items-center gap-1.5 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              className="px-2 py-0.5 sm:py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] sm:text-xs font-medium rounded-lg border border-indigo-200 flex items-center gap-1 transition disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               {loadingAi ? (
-                <LoadingSpinner size="xs" color="indigo" label="ভাবছে..." />
+                <LoadingSpinner size="xs" color="indigo" label="..." />
               ) : (
                 <>
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>এআই ড্রাফট</span>
+                  <Sparkles className="w-3 h-3 text-indigo-600" />
+                  <span>AI ড্রাফট</span>
                 </>
               )}
             </button>
