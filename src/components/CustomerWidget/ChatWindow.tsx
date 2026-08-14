@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2, ClipboardList, ExternalLink, AlertCircle, CheckCircle2, Megaphone, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ChatSession, ChatMessage, WidgetConfig } from '../../types';
+import { NoticeHeaderBar } from './NoticeHeaderBar';
 
 interface ChatWindowProps {
   chat: ChatSession;
@@ -374,6 +375,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
       </div>
 
+      {/* User Notice Header (Scrolling Announcement from Admin) */}
+      <NoticeHeaderBar notice={widgetConfig.noticeHeader} />
+
       {/* Messages Scroll Area */}
       <div className="flex-1 p-3.5 overflow-y-auto space-y-3.5 text-xs">
         
@@ -577,6 +581,33 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     )}
                   </div>
 
+                  {/* Under customer message bubble: Seen badge */}
+                  {isCustomer && (
+                    <div className="flex items-center justify-end gap-1 pt-0.5 text-[10px] font-semibold">
+                      {msg.readStatus === 'read' || chat.adminSeen ? (
+                        <div className="flex items-center gap-1 text-blue-600 bg-blue-50/80 px-1.5 py-0.5 rounded border border-blue-200/60 shadow-2xs animate-in fade-in">
+                          <CheckCheck className="w-3.5 h-3.5 text-blue-600 stroke-[2.5]" />
+                          <span>Seen</span>
+                          <span className="text-[9px] text-blue-500 font-normal">
+                            {msg.seenAt
+                              ? `(${new Date(msg.seenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
+                              : `(${msg.timestamp || 'এডমিন দেখেছেন'})`}
+                          </span>
+                        </div>
+                      ) : msg.readStatus === 'delivered' ? (
+                        <div className="flex items-center gap-1 text-slate-400 text-[9px]">
+                          <CheckCheck className="w-3 h-3 text-slate-400" />
+                          <span>Delivered</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-slate-400 text-[9px]">
+                          <Check className="w-3 h-3 text-slate-400" />
+                          <span>Sent</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Quick Reply Pills if present */}
                   {msg.quickReplies && msg.quickReplies.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1.5">
@@ -675,15 +706,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             type="text"
             value={inputText}
             onChange={handleInputChange}
+            inputMode="text"
+            autoCapitalize="sentences"
+            enterKeyHint="send"
+            autoComplete="off"
             placeholder="আপনার মেসেজটি লিখুন..."
-            className="flex-1 text-xs px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+            className="flex-1 text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition touch-manipulation"
           />
 
           <button
             type="submit"
             disabled={!inputText.trim() && attachments.length === 0}
             style={{ backgroundColor: widgetConfig.primaryColor }}
-            className="p-2 text-white rounded-xl shadow-xs hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            className="min-w-[42px] min-h-[42px] p-2.5 text-white rounded-xl shadow-xs hover:opacity-90 active:scale-95 transition flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+            title="মেসেজ পাঠান"
           >
             <Send className="w-4 h-4" />
           </button>

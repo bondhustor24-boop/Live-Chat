@@ -3,6 +3,7 @@ import { MessageSquare, X, Minimize2, Maximize2, ChevronDown } from 'lucide-reac
 import { PreChatForm } from './PreChatForm';
 import { ChatWindow } from './ChatWindow';
 import { SatisfactionRating } from './SatisfactionRating';
+import { NoticeHeaderBar } from './NoticeHeaderBar';
 import { ChatSession, ChatMessage, WidgetConfig } from '../../types';
 
 interface CustomerChatWidgetProps {
@@ -125,6 +126,9 @@ export const CustomerChatWidget: React.FC<CustomerChatWidgetProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* User Notice Header (Scrolling Announcement from Admin) */}
+                <NoticeHeaderBar notice={widgetConfig.noticeHeader} />
 
                 {/* Pre-chat Form */}
                 <div className="flex-1 overflow-y-auto">

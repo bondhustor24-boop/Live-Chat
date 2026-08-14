@@ -49,6 +49,16 @@ export const INITIAL_WIDGET_CONFIG: WidgetConfig = {
   telegramBotToken: '8861406019:AAHhY47ahk7DS495Ly1eLsa0tYZikFQ86f0',
   telegramChatId: '6081054558',
   telegramNotificationsEnabled: true,
+  noticeHeader: {
+    enabled: true,
+    text: '📢 বিশেষ বিজ্ঞপ্তি: সম্মানিত গ্রাহকবৃন্দ, লাইভ সাপোর্ট চ্যাটে আপনাকে স্বাগতম! যেকোনো প্রয়োজনে আমাদের প্রতিনিধিকে সরাসরি মেসেজ পাঠান।',
+    speed: 'medium',
+    theme: 'amber',
+    icon: 'megaphone',
+    linkUrl: 'https://live-chat-swart-nine.vercel.app/',
+    linkText: 'অফিসিয়াল সাইট',
+    updatedAt: new Date().toISOString()
+  },
   promoBanners: [
     {
       id: 'promo_1',

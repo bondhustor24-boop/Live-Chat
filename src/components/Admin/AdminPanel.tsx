@@ -40,7 +40,12 @@ import {
   ChevronLeft,
   ChevronRight,
   HelpCircle,
-  Smartphone
+  Smartphone,
+  Maximize2,
+  Minimize2,
+  Volume2,
+  Bell,
+  Info
 } from 'lucide-react';
 import {
   Agent,
@@ -50,6 +55,7 @@ import {
   BlockedUser,
   AdminUser,
   PromoBanner,
+  NoticeHeaderConfig,
   SUPPORT_PROBLEM_OPTIONS,
   type SupportProblemIssue
 } from '../../types';
@@ -61,8 +67,10 @@ import {
   markChatAsSeenByAdminInFirestore,
   AdminAccount
 } from '../../lib/firestoreSync';
+import { sendTelegramNotification } from '../../lib/telegramNotify';
 import { CODE_GS_SCRIPT } from './CodeGsModal';
 import { LoadingSpinner, LoadingButton } from '../LoadingSpinner';
+import { NoticeHeaderBar } from '../CustomerWidget/NoticeHeaderBar';
 
 interface AdminPanelProps {
   agents: Agent[];
@@ -134,8 +142,58 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Mobile View Management for Admin Live Chat
   const [mobileChatView, setMobileChatView] = useState<'list' | 'chat'>('list');
 
+  // Full Page Chat & User Info Visibility
+  const [isChatFullScreen, setIsChatFullScreen] = useState(false);
+  const [hideCustomerDetails, setHideCustomerDetails] = useState(false);
+
+  // Telegram Notifications State
+  const [telegramBotToken, setTelegramBotToken] = useState(widgetConfig.telegramBotToken || '');
+  const [telegramChatId, setTelegramChatId] = useState(widgetConfig.telegramChatId || '');
+  const [telegramNotificationsEnabled, setTelegramNotificationsEnabled] = useState(widgetConfig.telegramNotificationsEnabled ?? true);
+  const [isTestingTelegram, setIsTestingTelegram] = useState(false);
+  const [telegramTestResult, setTelegramTestResult] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [telegramSavedSuccess, setTelegramSavedSuccess] = useState(false);
+  const [isSavingTelegram, setIsSavingTelegram] = useState(false);
+
+  // User Notice Header State (Scrolling Announcement)
+  const initialNotice: NoticeHeaderConfig = widgetConfig.noticeHeader || {
+    enabled: true,
+    text: '📢 বিশেষ বিজ্ঞপ্তি: সম্মানিত গ্রাহকবৃন্দ, লাইভ সাপোর্ট চ্যাটে আপনাকে স্বাগতম! যেকোনো প্রয়োজনে আমাদের প্রতিনিধিকে সরাসরি মেসেজ পাঠান।',
+    speed: 'medium',
+    theme: 'amber',
+    icon: 'megaphone',
+    linkUrl: widgetConfig.websiteUrl || 'https://live-chat-swart-nine.vercel.app/',
+    linkText: 'অফিসিয়াল সাইট',
+  };
+
+  const [noticeEnabled, setNoticeEnabled] = useState<boolean>(initialNotice.enabled ?? true);
+  const [noticeText, setNoticeText] = useState<string>(initialNotice.text || '');
+  const [noticeSpeed, setNoticeSpeed] = useState<'slow' | 'medium' | 'fast'>(initialNotice.speed || 'medium');
+  const [noticeTheme, setNoticeTheme] = useState<'amber' | 'blue' | 'red' | 'emerald' | 'purple' | 'gradient'>(initialNotice.theme || 'amber');
+  const [noticeIcon, setNoticeIcon] = useState<'megaphone' | 'bell' | 'alert' | 'sparkle' | 'info'>(initialNotice.icon || 'megaphone');
+  const [noticeLinkUrl, setNoticeLinkUrl] = useState<string>(initialNotice.linkUrl || '');
+  const [noticeLinkText, setNoticeLinkText] = useState<string>(initialNotice.linkText || '');
+  const [noticeSavedSuccess, setNoticeSavedSuccess] = useState(false);
+  const [isSavingNotice, setIsSavingNotice] = useState(false);
+
+  // Masking Helper for User Info (Name, Phone, IP Address)
+  const maskUserInfo = (text?: string, type: 'name' | 'phone' | 'ip' = 'name') => {
+    if (!text) return 'N/A';
+    if (!hideCustomerDetails) return text;
+    if (type === 'name') {
+      return text.length > 2 ? `${text[0]}***${text[text.length - 1]} (লুকানো)` : '*** (লুকানো)';
+    }
+    if (type === 'phone') {
+      return text.length > 6 ? `${text.slice(0, 3)}*****${text.slice(-2)} (লুকানো)` : '017***** (লুকানো)';
+    }
+    if (type === 'ip') {
+      return '***.***.***.*** (লুকানো)';
+    }
+    return '*** (লুকানো)';
+  };
+
   // Active Admin Sub-tab
-  const [adminTab, setAdminTab] = useState<'overview' | 'live_chat' | 'agents' | 'codegs' | 'blocked_users' | 'admin_users' | 'settings' | 'promotion' | 'spinners'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'live_chat' | 'agents' | 'codegs' | 'blocked_users' | 'admin_users' | 'settings' | 'promotion' | 'spinners' | 'telegram' | 'notice'>('overview');
 
   // Website Promotion State (Multi-site)
   const getInitialBanners = (): PromoBanner[] => {
@@ -843,11 +901,68 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
             <span>🌀 স্পিনার</span>
           </button>
+
+          <button
+            onClick={() => setAdminTab('telegram')}
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shrink-0 ${
+              adminTab === 'telegram'
+                ? 'bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-xs font-bold'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Send className="w-3 h-3 text-sky-400" />
+            <span>✈️ টেলিগ্রাম নোটিফিকেশন</span>
+          </button>
+
+          <button
+            onClick={() => setAdminTab('notice')}
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition shrink-0 ${
+              adminTab === 'notice'
+                ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-slate-950 font-black shadow-xs'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Volume2 className={`w-3 h-3 ${noticeEnabled ? 'text-amber-600 animate-pulse' : 'text-slate-400'}`} />
+            <span>📢 ইউজার নোটিশ হেডার</span>
+            {noticeEnabled && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+            )}
+          </button>
         </div>
 
         {/* TAB 1: OVERVIEW & STATS */}
         {adminTab === 'overview' && (
           <div className="space-y-6 animate-in fade-in">
+            {/* Quick User Notice Header Bar */}
+            <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                <div className="p-2 bg-amber-500 text-slate-950 rounded-xl font-bold shrink-0">
+                  <Volume2 className="w-4 h-4 animate-pulse" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-amber-950">ইউজার নোটিশ হেডার স্ক্রলার</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-black ${
+                      noticeEnabled && noticeText.trim() ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {noticeEnabled && noticeText.trim() ? 'সক্রিয় (Active)' : 'নিষ্ক্রিয়'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-900 truncate mt-0.5 font-medium">
+                    {noticeText.trim() || 'কোনো নোটিশ সেট করা নেই'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setAdminTab('notice')}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1.5 transition shrink-0 cursor-pointer shadow-xs"
+              >
+                <span>বার্তা পরিবর্তন করুন</span>
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
             {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
@@ -993,7 +1108,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           };
 
           return (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col md:flex-row h-[560px] max-h-[calc(100vh-200px)] min-h-[420px] animate-in fade-in">
+            <div className={`bg-white border border-slate-200 shadow-md overflow-hidden flex flex-col md:flex-row animate-in fade-in transition-all ${
+              isChatFullScreen
+                ? 'fixed inset-0 z-50 rounded-none h-screen max-h-screen w-screen'
+                : 'rounded-2xl h-[560px] max-h-[calc(100vh-200px)] min-h-[420px]'
+            }`}>
               {/* Left Column: Customer Chat List */}
               <div
                 className={`w-full md:w-80 border-r border-slate-200 bg-slate-50 flex flex-col h-full shrink-0 ${
@@ -1041,13 +1160,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         <img
                           src={c.customer.avatar}
                           alt=""
-                          className={`w-9 h-9 rounded-full object-cover shrink-0 ring-2 ${
+                          className={`w-9 h-9 rounded-full object-cover aspect-square shrink-0 ring-2 ${
                             isSelected ? 'ring-white/50' : 'ring-slate-200'
                           }`}
                         />
                         <div className="flex-1 min-w-0 text-xs">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold truncate">{c.customer.name}</span>
+                            <span className="font-bold truncate">{maskUserInfo(c.customer.name, 'name')}</span>
                             <span className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
                               {c.lastMessageTime}
                             </span>
@@ -1071,7 +1190,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           )}
 
                           <div className={`text-[10px] truncate mt-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
-                            📞 {c.customer.phone || '01712345678'} • IP: {c.customer.ipAddress || '103.205.132.42'}
+                            📞 {maskUserInfo(c.customer.phone || '01712345678', 'phone')} • IP: {maskUserInfo(c.customer.ipAddress || '103.205.132.42', 'ip')}
                           </div>
                         </div>
                       </button>
@@ -1112,12 +1231,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <img
                         src={activeChatSession.customer.avatar}
                         alt=""
-                        className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-100 shrink-0"
+                        className="w-10 h-10 rounded-full object-cover aspect-square ring-2 ring-slate-100 shrink-0"
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-bold text-slate-900 text-sm truncate">
-                            {activeChatSession.customer.name}
+                            {maskUserInfo(activeChatSession.customer.name, 'name')}
                           </h3>
                           <button
                             onClick={() => {
@@ -1136,11 +1255,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                         <div className="flex items-center gap-2 text-xs text-slate-500 truncate mt-0.5 flex-wrap">
                           <span className="font-mono text-blue-700 font-bold">
-                            📞 {activeChatSession.customer.phone || '01712345678'}
+                            📞 {maskUserInfo(activeChatSession.customer.phone || '01712345678', 'phone')}
                           </span>
                           <span>•</span>
                           <span className="font-mono text-emerald-700 font-bold">
-                            🌐 IP: {activeChatSession.customer.ipAddress || '103.205.132.42'}
+                            🌐 IP: {maskUserInfo(activeChatSession.customer.ipAddress || '103.205.132.42', 'ip')}
                           </span>
                           <span>•</span>
                           <span className="bg-slate-100 px-1.5 py-0.2 rounded text-[10px] font-semibold text-slate-700">
@@ -1159,7 +1278,59 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2 text-xs flex-wrap">
-                      <span className="text-slate-500">স্ট্যাটাস:</span>
+                      {/* User Info Hide/Show Toggle */}
+                      <button
+                        onClick={() => setHideCustomerDetails(!hideCustomerDetails)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                          hideCustomerDetails
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                        title="গ্রাহকের নাম, ফোন ও আইপি এড্রেস লুকান অথবা প্রদর্শন করুন"
+                      >
+                        {hideCustomerDetails ? <EyeOff className="w-3.5 h-3.5 text-amber-700" /> : <Eye className="w-3.5 h-3.5 text-slate-700" />}
+                        <span>{hideCustomerDetails ? 'তথ্য দেখান' : 'তথ্য লুকান'}</span>
+                      </button>
+
+                      {/* Phone Direct SMS Trigger */}
+                      {activeChatSession.customer.phone && (
+                        <a
+                          href={`sms:${activeChatSession.customer.phone}?body=${encodeURIComponent(`আসসালামু আলাইকুম ${activeChatSession.customer.name}, নোভাচ্যাট সাপোর্ট থেকে যোগাযোগ করা হচ্ছে (টিকিট #${activeChatSession.id})`)}`}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                          title="মোবাইলে সরাসরি SMS অ্যাপের মাধ্যমে টেক্সট পাঠান"
+                        >
+                          <Smartphone className="w-3.5 h-3.5" />
+                          <span>SMS পাঠান</span>
+                        </a>
+                      )}
+
+                      {/* Phone Direct Call Trigger */}
+                      {activeChatSession.customer.phone && (
+                        <a
+                          href={`tel:${activeChatSession.customer.phone}`}
+                          className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                          title="সরাসরি কল দিন"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>কল</span>
+                        </a>
+                      )}
+
+                      {/* Full Page Chat Toggle Button */}
+                      <button
+                        onClick={() => setIsChatFullScreen(!isChatFullScreen)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs ${
+                          isChatFullScreen
+                            ? 'bg-amber-500 text-slate-950 font-black'
+                            : 'bg-slate-800 hover:bg-slate-700 text-white'
+                        }`}
+                        title={isChatFullScreen ? 'ছোট ভিউতে ফিরে যান' : 'চ্যাট ফুল পেজে ওপেন করুন'}
+                      >
+                        {isChatFullScreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                        <span>{isChatFullScreen ? 'ছোট স্ক্রিন' : 'ফুল পেজ ভিউ'}</span>
+                      </button>
+
+                      <span className="text-slate-500 ml-1">স্ট্যাটাস:</span>
                       <select
                         value={activeChatSession.status}
                         onChange={(e) => onChangeStatus && onChangeStatus(activeChatSession.id, e.target.value as any)}
@@ -1250,7 +1421,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <img
                               src={activeChatSession.customer.avatar}
                               alt=""
-                              className="w-7 h-7 rounded-full object-cover shrink-0 mb-1"
+                              className="w-7 h-7 rounded-full object-cover aspect-square shrink-0 mb-1"
                             />
                           )}
 
@@ -1263,7 +1434,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           >
                             <div className="flex items-center gap-2 mb-1">
                               <span className={`font-bold text-[10px] ${isCustomer ? 'text-slate-500' : 'text-blue-300'}`}>
-                                {m.senderName || (isCustomer ? activeChatSession.customer.name : 'এডমিন')}
+                                {isCustomer ? maskUserInfo(m.senderName || activeChatSession.customer.name, 'name') : (m.senderName || 'এডমিন')}
                               </span>
                               <span className={`text-[9px] ${isCustomer ? 'text-slate-400' : 'text-slate-400'}`}>
                                 {m.timestamp}
@@ -1272,6 +1443,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <div className="whitespace-pre-wrap font-sans text-xs leading-relaxed">
                               {m.content}
                             </div>
+                            {isCustomer && (
+                              <div className="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-slate-100">
+                                <span className="text-[8px] text-slate-400">{m.timestamp}</span>
+                                {(m.readStatus === 'read' || activeChatSession.adminSeen) && (
+                                  <span className="text-[9px] text-blue-600 font-bold flex items-center gap-0.5" title="এডমিন মেসেজ দেখেছেন">
+                                    <CheckCheck className="w-3 h-3 text-blue-600" />
+                                    <span>Seen</span>
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -2524,6 +2706,547 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
 
+            </div>
+          </div>
+        )}
+
+        {/* TAB 10: TELEGRAM NOTIFICATIONS */}
+        {adminTab === 'telegram' && (
+          <div className="space-y-6 animate-in fade-in max-w-4xl mx-auto">
+            {/* Header Card */}
+            <div className="bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-700 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
+              <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-white/20 rounded-xl backdrop-blur-xs">
+                      <Send className="w-6 h-6 text-sky-200" />
+                    </div>
+                    <h3 className="font-bold text-lg">টেলিগ্রাম নোটিফিকেশন সেটআপ (Telegram Alert Bot)</h3>
+                  </div>
+                  <p className="text-xs text-blue-100 mt-1 max-w-xl">
+                    যেকোনো নতুন গ্রাহক লাইভ চ্যাট শুরু করলে বা মেসেজ পাঠালে আপনার পার্সোনাল বা গ্রুপ টেলিগ্রাম অ্যাকাউন্টে তাত্ক্ষণিক নোটিফিকেশন চলে যাবে।
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 backdrop-blur-xs ${
+                    telegramNotificationsEnabled && telegramBotToken && telegramChatId
+                      ? 'bg-emerald-500/90 text-white'
+                      : 'bg-amber-500/90 text-slate-950 font-black'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${
+                      telegramNotificationsEnabled && telegramBotToken && telegramChatId ? 'bg-white animate-pulse' : 'bg-slate-900'
+                    }`} />
+                    <span>
+                      {telegramNotificationsEnabled && telegramBotToken && telegramChatId
+                        ? 'টেলিগ্রাম সক্রিয় (Connected)'
+                        : 'সেটআপ প্রয়োজন'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Telegram Configuration Form */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs space-y-6">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-blue-600" />
+                  <span>টেলিগ্রাম বট ও চ্যাট আইডি কনফিগারেশন</span>
+                </h4>
+                {telegramSavedSuccess && (
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>সফলভাবে সংরক্ষিত হয়েছে!</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Step by step guide */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-2 text-slate-700">
+                <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>টেলিগ্রাম বট তৈরির সহজ ৩ ধাপ:</span>
+                </div>
+                <ol className="list-decimal list-inside space-y-1 text-slate-600 pl-1">
+                  <li>টেলিগ্রামে <b>@BotFather</b> সার্চ করে <code>/newbot</code> লিখে একটি নতুন বট বানিয়ে <b>API Bot Token</b> কপি করুন।</li>
+                  <li>বটটিতে গিয়ে <b>/start</b> কমান্ড চাপুন।</li>
+                  <li>আপনার চ্যাট আইডি জানতে টেলিগ্রামে <b>@userinfobot</b> সার্চ করে চ্যাট আইডি (Chat ID) সংগ্রহ করুন।</li>
+                </ol>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setIsSavingTelegram(true);
+                  if (onUpdateWidgetConfig) {
+                    onUpdateWidgetConfig({
+                      telegramBotToken: telegramBotToken.trim(),
+                      telegramChatId: telegramChatId.trim(),
+                      telegramNotificationsEnabled: telegramNotificationsEnabled,
+                    });
+                  }
+                  setTelegramSavedSuccess(true);
+                  setTimeout(() => {
+                    setTelegramSavedSuccess(false);
+                    setIsSavingTelegram(false);
+                  }, 2000);
+                }}
+                className="space-y-4"
+              >
+                {/* Enable toggle */}
+                <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div>
+                    <span className="font-bold text-xs text-slate-800 block">টেলিগ্রাম নোটিফিকেশন চালু রাখুন</span>
+                    <span className="text-[10px] text-slate-500">মেসেজ আসলেই তাৎক্ষণিক টেলিগ্রাম অ্যালার্ট আসবে</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={telegramNotificationsEnabled}
+                    onChange={(e) => setTelegramNotificationsEnabled(e.target.checked)}
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-0 cursor-pointer"
+                  />
+                </div>
+
+                {/* Bot Token */}
+                <div className="space-y-1.5 text-xs">
+                  <label className="block font-bold text-slate-800">
+                    টেলিগ্রাম বট টোকেন (Telegram Bot Token) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={telegramBotToken}
+                    onChange={(e) => setTelegramBotToken(e.target.value)}
+                    placeholder="যেমন: 7856412390:AAHqWeRtYuIoP..."
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <p className="text-[10px] text-slate-400">@BotFather থেকে প্রাপ্ত বট টোকেন এখানে দিন</p>
+                </div>
+
+                {/* Chat ID */}
+                <div className="space-y-1.5 text-xs">
+                  <label className="block font-bold text-slate-800">
+                    টেলিগ্রাম চ্যাট আইডি (Telegram Chat ID) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={telegramChatId}
+                    onChange={(e) => setTelegramChatId(e.target.value)}
+                    placeholder="যেমন: 123456789 বা -100123456789 (গ্রুপের জন্য)"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <p className="text-[10px] text-slate-400">আপনার পার্সোনাল আইডি অথবা গ্রুপের চ্যাট আইডি দিন</p>
+                </div>
+
+                {/* Test Result Message Box */}
+                {telegramTestResult && (
+                  <div className={`p-3.5 rounded-xl border text-xs flex items-center justify-between gap-2 animate-in fade-in ${
+                    telegramTestResult.success
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {telegramTestResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      )}
+                      <span>{telegramTestResult.message}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTelegramTestResult(null)}
+                      className="text-slate-400 hover:text-slate-600 p-0.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    disabled={isTestingTelegram || !telegramBotToken || !telegramChatId}
+                    onClick={async () => {
+                      setIsTestingTelegram(true);
+                      setTelegramTestResult(null);
+                      try {
+                        const res = await sendTelegramNotification(
+                          { type: 'test' },
+                          {
+                            telegramBotToken: telegramBotToken.trim(),
+                            telegramChatId: telegramChatId.trim(),
+                            telegramNotificationsEnabled: true,
+                          }
+                        );
+                        setTelegramTestResult(res);
+                      } catch (err: any) {
+                        setTelegramTestResult({ success: false, message: err.message || 'টেস্ট নোটিফিকেশন পাঠাতে সমস্যা হয়েছে।' });
+                      } finally {
+                        setIsTestingTelegram(false);
+                      }
+                    }}
+                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-amber-300 font-bold text-xs rounded-xl flex items-center gap-2 transition cursor-pointer shadow-xs"
+                  >
+                    {isTestingTelegram ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-300" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isTestingTelegram ? 'টেস্ট পাঠানো হচ্ছে...' : '🧪 টেস্ট নোটিফিকেশন পাঠান'}</span>
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isSavingTelegram}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition cursor-pointer shadow-md"
+                  >
+                    {isSavingTelegram ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isSavingTelegram ? 'সংরক্ষণ হচ্ছে...' : 'সেটিংস সংরক্ষণ করুন'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 11: USER NOTICE HEADER (মারকুই স্ক্রলিং নোটিশ বার্তা) */}
+        {adminTab === 'notice' && (
+          <div className="space-y-6 animate-in fade-in max-w-4xl mx-auto">
+            {/* Header Card */}
+            <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-2xl p-6 text-slate-950 shadow-md relative overflow-hidden">
+              <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-black/10 rounded-xl backdrop-blur-xs">
+                      <Volume2 className="w-6 h-6 text-slate-950" />
+                    </div>
+                    <h3 className="font-bold text-lg text-slate-950">ইউজার নোটিশ হেডার (User Notice Header Marquee)</h3>
+                  </div>
+                  <p className="text-xs text-slate-900 font-medium mt-1 max-w-xl">
+                    এডমিন থেকে যে বার্তাটি দেওয়া হবে তা সরাসরি সকল ব্যবহারকারীর চ্যাট উইন্ডো ও প্রি-চ্যাট হেডারের নিচে ডানে-বামে সুন্দরভাবে স্ক্রলিং (Marquee Scroll) হতে থাকবে।
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1.5 rounded-full text-xs font-black flex items-center gap-1.5 backdrop-blur-xs ${
+                    noticeEnabled && noticeText.trim()
+                      ? 'bg-slate-950 text-amber-300 shadow-xs'
+                      : 'bg-slate-900/40 text-slate-900'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${
+                      noticeEnabled && noticeText.trim() ? 'bg-amber-400 animate-ping' : 'bg-slate-700'
+                    }`} />
+                    <span>
+                      {noticeEnabled && noticeText.trim() ? 'নোটিশ লাইভ চলছে (Active)' : 'নোটিশ বন্ধ রয়েছে'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* LIVE REAL-TIME PREVIEW CARD */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>লাইভ প্রিভিউ (গ্রাহক যেভাবে স্ক্রলিং দেখতে পাবেন):</span>
+                </span>
+                <span className="text-[10px] text-slate-400">মাউস ধরলে স্ক্রলিং পজ হবে</span>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs bg-slate-50">
+                {noticeEnabled && noticeText.trim() ? (
+                  <NoticeHeaderBar
+                    notice={{
+                      enabled: noticeEnabled,
+                      text: noticeText,
+                      speed: noticeSpeed,
+                      theme: noticeTheme,
+                      icon: noticeIcon,
+                      linkUrl: noticeLinkUrl,
+                      linkText: noticeLinkText,
+                    }}
+                  />
+                ) : (
+                  <div className="p-3 text-center text-xs text-slate-400 bg-slate-100 font-medium">
+                    ⚠️ নোটিশ বন্ধ রয়েছে অথবা কোনো টেক্সট লেখা নেই। নিচে বার্তা লিখে চালু করুন।
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Preset Message Templates */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Megaphone className="w-4 h-4 text-blue-600" />
+                  <span>রেডিমেড নোটিশ টেমপ্লেট (এক ক্লিকে সেট করুন):</span>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNoticeText('📢 বিশেষ বিজ্ঞপ্তি: সম্মানিত গ্রাহকবৃন্দ, লাইভ সাপোর্ট চ্যাটে আপনাকে স্বাগতম! যেকোনো তথ্যের জন্য সরাসরি আমাদের বার্তা পাঠান।');
+                    setNoticeTheme('amber');
+                    setNoticeIcon('megaphone');
+                    setNoticeSpeed('medium');
+                    setNoticeEnabled(true);
+                  }}
+                  className="p-2.5 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100/90 text-left transition flex items-start gap-2 cursor-pointer"
+                >
+                  <span className="text-base">📢</span>
+                  <div>
+                    <span className="font-bold text-amber-950 block">সাধারণ স্বাগত বার্তা</span>
+                    <span className="text-[10px] text-amber-800 line-clamp-1">লাইভ সাপোর্ট চ্যাটে আপনাকে স্বাগতম...</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNoticeText('⚠️ জরুরী রক্ষণাবেক্ষণ: সম্মানিত গ্রাহকবৃন্দ, আজ রাত ১২:০০ থেকে ১:০০ পর্যন্ত সার্ভার আপগ্রেডের জন্য চ্যাটে সাময়িক বিলম্ব হতে পারে।');
+                    setNoticeTheme('red');
+                    setNoticeIcon('alert');
+                    setNoticeSpeed('fast');
+                    setNoticeEnabled(true);
+                  }}
+                  className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 text-left transition flex items-start gap-2 cursor-pointer"
+                >
+                  <span className="text-base">⚠️</span>
+                  <div>
+                    <span className="font-bold text-rose-950 block">সার্ভার রক্ষণাবেক্ষণ নোটিশ</span>
+                    <span className="text-[10px] text-rose-800 line-clamp-1">সার্ভার আপগ্রেডের জন্য চ্যাটে সাময়িক বিলম্ব...</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNoticeText('🎉 ধামাকা অফার! আমাদের অফিশিয়াল পোর্টালে নতুন ইউজার রেজিস্ট্রেশনে ১০০% ওয়েলকাম বোনাস উপভোগ করুন।');
+                    setNoticeTheme('emerald');
+                    setNoticeIcon('sparkle');
+                    setNoticeSpeed('medium');
+                    setNoticeLinkText('বোনাস নিন');
+                    setNoticeEnabled(true);
+                  }}
+                  className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/90 text-left transition flex items-start gap-2 cursor-pointer"
+                >
+                  <span className="text-base">🎁</span>
+                  <div>
+                    <span className="font-bold text-emerald-950 block">স্পেশাল বোনাস ও অফার</span>
+                    <span className="text-[10px] text-emerald-800 line-clamp-1">১০০% ওয়েলকাম বোনাস উপভোগ করুন...</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNoticeText('🕒 সার্বক্ষণিক সাপোর্ট: আমাদের কাস্টমার কেয়ার টিম ২৪/৭ নিরবিচ্ছিন্ন সেবা দিচ্ছে। কোনো অভিযোগ থাকলে জানান।');
+                    setNoticeTheme('blue');
+                    setNoticeIcon('bell');
+                    setNoticeSpeed('medium');
+                    setNoticeEnabled(true);
+                  }}
+                  className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100/90 text-left transition flex items-start gap-2 cursor-pointer"
+                >
+                  <span className="text-base">🕒</span>
+                  <div>
+                    <span className="font-bold text-blue-950 block">২৪/৭ সাপোর্ট এলার্ট</span>
+                    <span className="text-[10px] text-blue-800 line-clamp-1">আমাদের কাস্টমার কেয়ার টিম সর্বদা পাশে আছে...</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Notice Configuration Form */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs space-y-6">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <Edit3 className="w-4 h-4 text-blue-600" />
+                  <span>নোটিশ বার্তা ও স্টাইল কাস্টমাইজেশন</span>
+                </h4>
+                {noticeSavedSuccess && (
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>সফলভাবে ব্রডকাস্ট ও সংরক্ষিত হয়েছে!</span>
+                  </span>
+                )}
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setIsSavingNotice(true);
+                  const updatedNotice: NoticeHeaderConfig = {
+                    enabled: noticeEnabled,
+                    text: noticeText.trim(),
+                    speed: noticeSpeed,
+                    theme: noticeTheme,
+                    icon: noticeIcon,
+                    linkUrl: noticeLinkUrl.trim(),
+                    linkText: noticeLinkText.trim(),
+                    updatedAt: new Date().toISOString(),
+                  };
+
+                  if (onUpdateWidgetConfig) {
+                    onUpdateWidgetConfig({
+                      noticeHeader: updatedNotice,
+                    });
+                  }
+                  setNoticeSavedSuccess(true);
+                  setTimeout(() => {
+                    setNoticeSavedSuccess(false);
+                    setIsSavingNotice(false);
+                  }, 2000);
+                }}
+                className="space-y-5 text-xs"
+              >
+                {/* Enable / Disable Toggle */}
+                <div className="flex items-center justify-between p-4 bg-amber-50/50 border border-amber-200/80 rounded-xl">
+                  <div>
+                    <span className="font-bold text-xs text-amber-950 block">গ্রাহকের জন্য স্ক্রলিং নোটিশ হেডার চালু রাখুন</span>
+                    <span className="text-[10px] text-amber-800">চালু থাকলে গ্রাহক উইজেটে বার্তাটি চলমান অবস্থায় দেখবে</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={noticeEnabled}
+                    onChange={(e) => setNoticeEnabled(e.target.checked)}
+                    className="w-5 h-5 rounded text-amber-600 focus:ring-0 cursor-pointer"
+                  />
+                </div>
+
+                {/* Notice Textarea */}
+                <div className="space-y-1.5">
+                  <label className="block font-bold text-slate-800">
+                    নোটিশ বার্তা / টেক্সট (Notice Text) *
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={noticeText}
+                    onChange={(e) => setNoticeText(e.target.value)}
+                    placeholder="এখানে আপনার বার্তা লিখুন যা গ্রাহকের স্ক্রিনে স্ক্রল করবে..."
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-amber-500/20 leading-relaxed font-sans"
+                  />
+                  <p className="text-[10px] text-slate-400">বাংলা বা ইংরেজি যেকোনো ভাষায় লিখতে পারেন। ইমোজিও ব্যবহার করা যাবে।</p>
+                </div>
+
+                {/* Theme & Icon Selection */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Theme Color */}
+                  <div className="space-y-1.5">
+                    <label className="block font-bold text-slate-800">নোটিশ ব্যাকগ্রাউন্ড থিম (Theme Color)</label>
+                    <select
+                      value={noticeTheme}
+                      onChange={(e) => setNoticeTheme(e.target.value as any)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-amber-500/20"
+                    >
+                      <option value="amber">🟡 গোল্ডেন এম্বার (সতর্কতা ও সাধারণ নোটিশ)</option>
+                      <option value="blue">🔵 রয়াল ব্লু (অফিশিয়াল ঘোষণা)</option>
+                      <option value="red">🔴 আরজেন্ট রেড (জরুরি ও মেইনটেনেন্স)</option>
+                      <option value="emerald">🟢 এমারেল্ড গ্রিন (অফার ও বোনাস)</option>
+                      <option value="purple">🟣 প্রিমিয়াম পার্পল (ভিআইপি বার্তা)</option>
+                      <option value="gradient">🌌 কসমিক ডার্ক গ্রেডিয়েন্ট</option>
+                    </select>
+                  </div>
+
+                  {/* Scroll Speed */}
+                  <div className="space-y-1.5">
+                    <label className="block font-bold text-slate-800">স্ক্রলিং গতি (Scrolling Speed)</label>
+                    <select
+                      value={noticeSpeed}
+                      onChange={(e) => setNoticeSpeed(e.target.value as any)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-amber-500/20"
+                    >
+                      <option value="medium">⚡ স্বাভাবিক গতি (Normal / 20s)</option>
+                      <option value="slow">🐢 ধীর গতি (Slow / 32s - বড় বার্তার জন্য)</option>
+                      <option value="fast">🚀 দ্রুত গতি (Fast / 12s - ছোট বার্তার জন্য)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Icon Selection & Link */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Icon */}
+                  <div className="space-y-1.5">
+                    <label className="block font-bold text-slate-800">আইকন (Notice Icon)</label>
+                    <select
+                      value={noticeIcon}
+                      onChange={(e) => setNoticeIcon(e.target.value as any)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-amber-500/20"
+                    >
+                      <option value="megaphone">📢 মাইক / মেগাফোন</option>
+                      <option value="bell">🔔 বেল / নোটিফিকেশন</option>
+                      <option value="alert">⚠️ সতর্কতা চিহ্ন</option>
+                      <option value="sparkle">✨ স্পার্কল / অফার</option>
+                      <option value="info">ℹ️ ইনফরমেশন</option>
+                    </select>
+                  </div>
+
+                  {/* Optional Link URL */}
+                  <div className="space-y-1.5">
+                    <label className="block font-bold text-slate-800">লিংক URL (ঐচ্ছিক)</label>
+                    <input
+                      type="url"
+                      value={noticeLinkUrl}
+                      onChange={(e) => setNoticeLinkUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+
+                  {/* Link Text */}
+                  <div className="space-y-1.5">
+                    <label className="block font-bold text-slate-800">লিংক বাটন টেক্সট (ঐচ্ছিক)</label>
+                    <input
+                      type="text"
+                      value={noticeLinkText}
+                      onChange={(e) => setNoticeLinkText(e.target.value)}
+                      placeholder="যেমন: বিস্তারিত দেখুন"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNoticeText('');
+                        setNoticeEnabled(false);
+                      }}
+                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+                    >
+                      ক্লিয়ার করুন
+                    </button>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSavingNotice}
+                    className="px-7 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl flex items-center gap-2 transition cursor-pointer shadow-md"
+                  >
+                    {isSavingNotice ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5 text-slate-950 font-black" />
+                    )}
+                    <span>{isSavingNotice ? 'ব্রডকাস্ট হচ্ছে...' : '📢 নোটিশ সংরক্ষণ ও ব্রডকাস্ট করুন'}</span>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

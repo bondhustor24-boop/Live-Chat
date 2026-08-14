@@ -156,6 +156,17 @@ export interface PromoBanner {
   createdAt?: string;
 }
 
+export interface NoticeHeaderConfig {
+  enabled: boolean;
+  text: string;
+  speed?: 'slow' | 'medium' | 'fast';
+  theme?: 'amber' | 'blue' | 'red' | 'emerald' | 'purple' | 'slate' | 'gradient';
+  icon?: 'megaphone' | 'bell' | 'alert' | 'sparkle' | 'info';
+  linkUrl?: string;
+  linkText?: string;
+  updatedAt?: string;
+}
+
 export interface WidgetConfig {
   primaryColor: string;
   headerTitle: string;
@@ -172,6 +183,7 @@ export interface WidgetConfig {
   telegramBotToken?: string;
   telegramChatId?: string;
   telegramNotificationsEnabled?: boolean;
+  noticeHeader?: NoticeHeaderConfig;
   promoBanner?: PromoBanner;
   promoBanners?: PromoBanner[];
 }

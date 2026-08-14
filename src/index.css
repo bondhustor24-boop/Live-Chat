@@ -35,3 +35,44 @@ html, body, #root {
   line-height: 1.3 !important;
 }
 
+/* User Notice Header Marquee Scrolling Animation */
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.notice-marquee-track {
+  display: flex;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  white-space: nowrap;
+}
+
+.notice-marquee-text {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee-scroll 20s linear infinite;
+}
+
+.notice-marquee-text.speed-fast {
+  animation-duration: 12s;
+}
+
+.notice-marquee-text.speed-medium {
+  animation-duration: 20s;
+}
+
+.notice-marquee-text.speed-slow {
+  animation-duration: 32s;
+}
+
+.notice-marquee-text:hover,
+.notice-marquee-track:hover .notice-marquee-text {
+  animation-play-state: paused;
+}
+

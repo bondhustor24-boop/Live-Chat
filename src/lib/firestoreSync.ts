@@ -225,7 +225,7 @@ export async function authenticateAdminWithFirestore(
 
     return {
       success: false,
-      error: 'ফায়ারবেস অথেন্টিকেশন ব্যর্থ: ইউজারনেম বা পাসওয়ার্ড সঠিক নয়!',
+      error: 'ইউজারনেম বা পাসওয়ার্ড সঠিক নয়!',
     };
   } catch (err: any) {
     console.error('Firestore authentication error:', err);
@@ -241,7 +241,7 @@ export async function authenticateAdminWithFirestore(
     }
     return {
       success: false,
-      error: `ফায়ারবেস ডাটাবেসে লগইন যাচাই করা যায়নি: ${err.message || 'নেটওয়ার্ক ত্রুটি'}`,
+      error: 'ইউজারনেম বা পাসওয়ার্ড সঠিক নয়!',
     };
   }
 }

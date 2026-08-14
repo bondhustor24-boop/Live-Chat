@@ -11,7 +11,7 @@ import { CannedResponsesTab } from './components/AgentWorkspace/CannedResponsesT
 import { WidgetSettings } from './components/Settings/WidgetSettings';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { CodeGsModal } from './components/Admin/CodeGsModal';
-import { ShieldCheck, Lock, KeyRound, X, User, Bell } from 'lucide-react';
+import { ShieldCheck, Lock, KeyRound, X, User, Bell, RefreshCw } from 'lucide-react';
 import {
   ChatSession,
   ChatMessage,
@@ -41,6 +41,7 @@ import {
   setupFirestoreRealtimeListeners,
   authenticateAdminWithFirestore
 } from './lib/firestoreSync';
+import { sendTelegramNotification } from './lib/telegramNotify';
 
 export default function App() {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
@@ -62,6 +63,7 @@ export default function App() {
   const [adminLoginUsername, setAdminLoginUsername] = useState('');
   const [adminLoginPassword, setAdminLoginPassword] = useState('');
   const [adminLoginError, setAdminLoginError] = useState('');
+  const [isAdminLoginLoading, setIsAdminLoginLoading] = useState(false);
 
   // Mobile Workspace Navigation
   const [mobileWorkspaceView, setMobileWorkspaceView] = useState<'list' | 'chat'>('list');
@@ -514,6 +516,7 @@ export default function App() {
   const handleAdminLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAdminLoginError('');
+    setIsAdminLoginLoading(true);
 
     try {
       // Authenticate with Firebase Firestore
@@ -529,6 +532,7 @@ export default function App() {
         setIsAdminLoginModalOpen(false);
         setAdminLoginPassword('');
         setAdminLoginError('');
+        setIsAdminLoginLoading(false);
 
         if (firestoreResult.admin.role === 'Agent') {
           setActiveTab('agent_workspace');
@@ -538,6 +542,7 @@ export default function App() {
         return;
       } else if (firestoreResult.error && !firestoreResult.error.includes('কানেকশন সমস্যা')) {
         setAdminLoginError(firestoreResult.error);
+        setIsAdminLoginLoading(false);
         return;
       }
     } catch (err) {
@@ -560,6 +565,7 @@ export default function App() {
           setIsAdminLoginModalOpen(false);
           setAdminLoginPassword('');
           setAdminLoginError('');
+          setIsAdminLoginLoading(false);
           
           if (data.user && data.user.role === 'Agent') {
             setActiveTab('agent_workspace');
@@ -588,6 +594,7 @@ export default function App() {
       setIsAdminLoginModalOpen(false);
       setAdminLoginPassword('');
       setAdminLoginError('');
+      setIsAdminLoginLoading(false);
       if (usernameInput === 'arif' || usernameInput === 'tanvir') {
         setActiveTab('agent_workspace');
       } else {
@@ -595,6 +602,7 @@ export default function App() {
       }
     } else {
       setAdminLoginError('লগইন ব্যর্থ হয়েছে! ইউজারনেম ও পাসওয়ার্ড সঠিক দিন।');
+      setIsAdminLoginLoading(false);
     }
   };
 
@@ -808,9 +816,24 @@ export default function App() {
       setCustomerChatId(chatId);
       setSelectedChatId(chatId);
 
-      // Sync directly to Firestore
+      // Direct Firestore sync
       syncChatToFirestore(newSession);
       syncMessageToFirestore(firstMsg);
+
+      // Telegram notification on new chat
+      sendTelegramNotification(
+        {
+          type: 'new_chat',
+          customerName: data.customerName,
+          customerPhone: data.customerPhone,
+          customerEmail: data.customerEmail,
+          department: data.department,
+          problemIssue: (data as any).problemIssue || data.subject,
+          chatId: chatId,
+          messageText: data.initialMessage,
+        },
+        widgetConfig
+      );
 
       // Direct Google Sheet Sync
       syncToGoogleSheetDirect(widgetConfig.appsScriptUrl, {
@@ -913,6 +936,20 @@ export default function App() {
 
     // Direct Firestore sync
     syncMessageToFirestore(newMsg);
+
+    // Telegram notification on customer message
+    sendTelegramNotification(
+      {
+        type: 'new_message',
+        customerName: currentChat?.customer.name || 'Visitor',
+        customerPhone: currentChat?.customer.phone,
+        customerIp: currentChat?.customer.ipAddress,
+        problemIssue: currentChat?.problemIssue,
+        chatId: customerChatId,
+        messageText: displayMsg,
+      },
+      widgetConfig
+    );
 
     try {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -1635,10 +1672,20 @@ export default function App() {
 
               <button
                 type="submit"
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer mt-2"
+                disabled={isAdminLoginLoading}
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-60 text-white font-bold text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer mt-2"
               >
-                <KeyRound className="w-4 h-4" />
-                <span>লগইন করুন</span>
+                {isAdminLoginLoading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>লগইন যাচাই হচ্ছে...</span>
+                  </>
+                ) : (
+                  <>
+                    <KeyRound className="w-4 h-4" />
+                    <span>লগইন করুন</span>
+                  </>
+                )}
               </button>
             </form>
           </div>
