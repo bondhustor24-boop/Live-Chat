@@ -74,6 +74,7 @@ import { sendTelegramNotification } from '../../lib/telegramNotify';
 import { CODE_GS_SCRIPT } from './CodeGsModal';
 import { LoadingSpinner, LoadingButton } from '../LoadingSpinner';
 import { NoticeHeaderBar } from '../CustomerWidget/NoticeHeaderBar';
+import { SpinnerSetupModal, SpinnerConfig } from './SpinnerSetupModal';
 
 interface AdminPanelProps {
   agents: Agent[];
@@ -198,6 +199,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Active Admin Sub-tab
   const [adminTab, setAdminTab] = useState<'overview' | 'live_chat' | 'agents' | 'codegs' | 'blocked_users' | 'admin_users' | 'settings' | 'promotion' | 'spinners' | 'telegram' | 'notice'>('overview');
+  const [isSpinnerModalOpen, setIsSpinnerModalOpen] = useState(false);
 
   // Website Promotion State (Multi-site)
   const getInitialBanners = (): PromoBanner[] => {
@@ -731,32 +733,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     >
       <div className="max-w-6xl mx-auto space-y-4">
         
-        {/* Top Admin Navigation Header */}
-        <div className="bg-slate-900 text-white rounded-2xl p-3 sm:p-4 border border-slate-800 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shrink-0">
-              <ShieldCheck className="w-4 h-4" />
+        {/* Compact Admin Toolbar (Replaces old bulky banner) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+              <ShieldCheck className="w-3.5 h-3.5" />
             </div>
-            <div>
-              <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 flex-wrap">
-                <span>নোভাচ্যাট অ্যাডমিন কন্ট্রোল প্যানেল</span>
-                <span className="text-[7px] bg-emerald-500 text-slate-950 font-black uppercase px-1.5 py-0.2 rounded-full">
-                  সক্রিয়
-                </span>
-                <span className="text-[7px] bg-blue-500/30 text-blue-300 font-mono px-1.5 py-0.2 rounded border border-blue-400/30">
-                  Font: {adminFontSize}
-                </span>
-              </h2>
-              <p className="text-[7px] sm:text-[8px] text-slate-400 mt-0.5">
-                লগইন একাউন্ট: <span className="text-blue-300 font-semibold">{adminEmail}</span>
-              </p>
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-slate-800 text-[10px] sm:text-xs">এডমিন কন্ট্রোল</span>
+              <span className="text-[7px] bg-emerald-500/20 text-emerald-700 font-extrabold uppercase px-1.5 py-0.2 rounded">
+                সক্রিয়
+              </span>
+              <span className="text-[7px] text-slate-400 font-mono hidden sm:inline">
+                ({adminEmail})
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
-            {/* Font Size Selector (User requested 7px) */}
-            <div className="flex items-center bg-slate-800/80 border border-slate-700/80 rounded-lg p-0.5 text-[7px]">
-              <span className="text-slate-400 px-1.5 font-bold">ফন্ট:</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Font Size Selector */}
+            <div className="flex items-center bg-slate-100 border border-slate-200 rounded-lg p-0.5 text-[7px]">
+              <span className="text-slate-500 px-1 font-bold">ফন্ট:</span>
               {(['7px', '8px', '9px', '10px'] as const).map((sz) => (
                 <button
                   key={sz}
@@ -764,7 +761,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className={`px-1.5 py-0.5 rounded transition font-bold cursor-pointer ${
                     adminFontSize === sz
                       ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                   }`}
                   title={`ফন্ট সাইজ ${sz} সেট করুন`}
                 >
@@ -773,17 +770,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               ))}
             </div>
 
+            {/* Spinner Model Setup Modal Trigger */}
             <button
-              onClick={onOpenCodeGsModal}
-              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[8px] sm:text-[9px] font-semibold rounded-lg flex items-center gap-1 transition shadow-xs cursor-pointer"
+              onClick={() => setIsSpinnerModalOpen(true)}
+              className="px-2 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-[8px] sm:text-[9px] font-bold rounded-lg flex items-center gap-1 transition shadow-xs cursor-pointer"
+              title="স্পিনার লোডার মডেল কাস্টমাইজ ও টেস্ট করুন"
             >
-              <Code className="w-3 h-3" />
-              <span>Code.gs ফাইল</span>
+              <Sparkles className="w-3 h-3 text-amber-200 animate-pulse" />
+              <span>স্পিনার মডেল সেটআপ</span>
             </button>
 
+            {/* Code.gs Modal Button */}
+            <button
+              onClick={onOpenCodeGsModal}
+              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[8px] sm:text-[9px] font-bold rounded-lg flex items-center gap-1 transition shadow-xs cursor-pointer"
+            >
+              <Code className="w-3 h-3" />
+              <span>Code.gs</span>
+            </button>
+
+            {/* Logout */}
             <button
               onClick={handleLogout}
-              className="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-[8px] sm:text-[9px] font-semibold rounded-lg flex items-center gap-1 transition cursor-pointer"
+              className="px-2 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-[8px] sm:text-[9px] font-bold rounded-lg flex items-center gap-1 transition cursor-pointer"
+              title="এডমিন লগআউট"
             >
               <LogOut className="w-3 h-3" />
               <span>লগআউট</span>
@@ -3516,6 +3526,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
         )}
+
+        {/* Spinner Model Setup Modal */}
+        <SpinnerSetupModal
+          isOpen={isSpinnerModalOpen}
+          onClose={() => setIsSpinnerModalOpen(false)}
+          onApplySpinnerSettings={(config) => {
+            if (onUpdateWidgetConfig) {
+              // save in widgetConfig if supported
+              onUpdateWidgetConfig({
+                themeColor: config.color === 'primary' ? widgetConfig.themeColor : config.color
+              });
+            }
+          }}
+        />
 
       </div>
     </div>
