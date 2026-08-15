@@ -140,11 +140,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
 
     // 2. In Chat window: send ONLY a clean confirmation message (No sensitive password/data in public chat)
-    onSendMessage('✅ আপনার ইউজার রিপোর্ট ও তথ্য গোপনীয়ভাবে টেলিগ্রাম বোর্ডে জমা নেওয়া হয়েছে। সাপোর্ট টিম তথ্যগুলো যাচাই করে ব্যবস্থা নিচ্ছে।');
+    onSendMessage('✅ আপনার রিপোর্ট ফরমটি সফলভাবে সাবমিট হয়েছে। খুব শীঘ্রই আপনার সমস্যাটি সমাধান করা হবে।');
 
     setTimeout(() => {
       setReportSubmitting(false);
-      setReportSuccess('আপনার ইউজার রিপোর্ট ও তথ্য সফলভাবে জমা হয়েছে!');
+      setReportSuccess('আপনার রিপোর্ট সফলভাবে সাবমিট হয়েছে। খুব শীঘ্রই সমাধান করা হবে!');
       setTimeout(() => {
         setShowReportModal(false);
         setReportSuccess(null);

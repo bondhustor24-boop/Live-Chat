@@ -383,6 +383,17 @@ export async function syncMessageToFirestore(message: any) {
   }
 }
 
+// Delete a single Message from Firestore
+export async function deleteMessageFromFirestore(messageId: string, chatId?: string) {
+  if (!messageId) return;
+  try {
+    const msgRef = doc(db, MESSAGES_COL, messageId);
+    await deleteDoc(msgRef);
+  } catch (err) {
+    console.error(`Firestore delete error for message ${messageId}:`, err);
+  }
+}
+
 // Save Widget Config Settings to Firestore
 export async function syncWidgetConfigToFirestore(config: any) {
   try {

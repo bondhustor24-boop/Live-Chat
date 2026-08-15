@@ -40,7 +40,8 @@ import {
   loadFirestoreData,
   setupFirestoreRealtimeListeners,
   authenticateAdminWithFirestore,
-  markChatAsSeenByAdminInFirestore
+  markChatAsSeenByAdminInFirestore,
+  deleteMessageFromFirestore
 } from './lib/firestoreSync';
 import { sendTelegramNotification } from './lib/telegramNotify';
 
@@ -736,6 +737,18 @@ export default function App() {
 
             case 'settings_updated': {
               if (parsed.widgetConfig) setWidgetConfig(parsed.widgetConfig);
+              break;
+            }
+
+            case 'delete_message':
+            case 'message_deleted': {
+              const { chatId, messageId } = parsed;
+              if (chatId && messageId) {
+                setMessages((prev) => ({
+                  ...prev,
+                  [chatId]: (prev[chatId] || []).filter((m) => m.id !== messageId),
+                }));
+              }
               break;
             }
 
