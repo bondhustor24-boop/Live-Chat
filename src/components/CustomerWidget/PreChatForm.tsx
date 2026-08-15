@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Send, User, Mail, Phone, HelpCircle } from 'lucide-react';
 import { WidgetConfig, SUPPORT_PROBLEM_OPTIONS, type SupportProblemIssue } from '../../types';
 import { LoadingSpinner } from '../LoadingSpinner';
+import { getSavedCustomerProfile, saveCustomerProfile } from '../../lib/visitorIdentity';
 
 interface PreChatFormProps {
   widgetConfig: WidgetConfig;
@@ -17,9 +18,10 @@ interface PreChatFormProps {
 }
 
 export const PreChatForm: React.FC<PreChatFormProps> = ({ widgetConfig, onSubmit }) => {
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
+  const savedProfile = getSavedCustomerProfile();
+  const [customerName, setCustomerName] = useState(savedProfile.name || '');
+  const [customerPhone, setCustomerPhone] = useState(savedProfile.phone || '');
+  const [customerEmail, setCustomerEmail] = useState(savedProfile.email || '');
   const [problemIssue, setProblemIssue] = useState<SupportProblemIssue>('withdraw_problem');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,6 +36,9 @@ export const PreChatForm: React.FC<PreChatFormProps> = ({ widgetConfig, onSubmit
       alert('অনুগ্রহ করে একটি সঠিক ১০ বা ১১ ডিজিটের মোবাইল নম্বর প্রদান করুন (যেমন: 01712345678)।');
       return;
     }
+
+    // Save profile locally so customer identity is retained across sessions
+    saveCustomerProfile(customerName.trim(), cleanPhone, customerEmail.trim());
 
     const selectedOption = SUPPORT_PROBLEM_OPTIONS.find((opt) => opt.value === problemIssue);
     const calculatedSubject = selectedOption?.bangla || 'সাপোর্ট অনুসন্ধান';

@@ -414,6 +414,9 @@ wss.on('connection', (ws: ClientSocket) => {
 
           // Update chat meta
           if (targetChat) {
+            if (senderRole === 'customer' && (targetChat.status === 'resolved' || targetChat.status === 'closed')) {
+              targetChat.status = 'active'; // Reopen closed chat when customer sends new message
+            }
             targetChat.updatedAt = new Date().toISOString();
             if (!isInternalNote) {
               targetChat.lastMessage = content;
@@ -624,18 +627,20 @@ app.all(['/api/webhook/sms', '/api/webhook/google-sheet', '/api/webhook/incoming
     const ipAddress = item.ipAddress || item.ip || '103.205.132.42';
     const customChatId = item.chatId || item.id;
 
-    // Find existing chat by customChatId or matching clean phone number
+    // Find existing chat by customChatId, customerId, or matching clean phone number
     let targetChat = chats.find((c) => {
       if (customChatId && c.id === customChatId) return true;
+      if (item.customerId && c.customerId === item.customerId) return true;
       if (c.customer && c.customer.phone && String(c.customer.phone).replace(/[^0-9]/g, '').includes(cleanPhone)) return true;
       if (c.id && c.id.includes(cleanPhone)) return true;
       return false;
     });
 
-    const chatId = targetChat ? targetChat.id : (customChatId || `CHAT-${cleanPhone}-${ipAddress}`);
+    const isNew = !targetChat;
+    const chatId = targetChat ? targetChat.id : (customChatId || `CHAT-${cleanPhone}`);
 
     if (!targetChat) {
-      const customerId = 'cust_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+      const customerId = item.customerId || ('cust_' + cleanPhone);
       targetChat = {
         id: chatId,
         customerId,
@@ -654,7 +659,7 @@ app.all(['/api/webhook/sms', '/api/webhook/google-sheet', '/api/webhook/incoming
           tags: ['SMS কাস্টমার', 'মোবাইল চ্যাট'],
         },
         department: item.department || 'গ্রাহক সহায়তা (Customer Support)',
-        status: 'unassigned',
+        status: 'active',
         priority: 'high',
         subject: `এসএমএস চ্যাট (ফোন: ${phone})`,
         createdAt: new Date().toISOString(),
@@ -670,6 +675,13 @@ app.all(['/api/webhook/sms', '/api/webhook/google-sheet', '/api/webhook/incoming
         type: 'new_chat_created',
         chat: targetChat,
       });
+    } else {
+      // Existing chat: reopen if closed and update in-place
+      targetChat.status = 'active';
+      targetChat.updatedAt = new Date().toISOString();
+      targetChat.lastMessage = String(content).trim();
+      targetChat.lastMessageTime = 'Just now';
+      targetChat.unreadCountAgent = (targetChat.unreadCountAgent || 0) + 1;
     }
 
     const newMsg: ChatMessage = {
@@ -683,7 +695,6 @@ app.all(['/api/webhook/sms', '/api/webhook/google-sheet', '/api/webhook/incoming
       readStatus: 'delivered',
     };
 
-    chats.unshift(targetChat);
     messages[chatId] = messages[chatId] || [];
     messages[chatId].push(newMsg);
 
@@ -767,9 +778,9 @@ app.get('/api/messages', (req, res) => {
   res.json(messages);
 });
 
-// CREATE Chat (Pre-chat form submission)
+// CREATE or REOPEN Chat (Pre-chat form submission)
 app.post('/api/chats', (req, res) => {
-  const { customerName, customerPhone, customerEmail, department, subject, initialMessage } = req.body;
+  const { customerName, customerPhone, customerEmail, customerId: reqCustomerId, visitorId: reqVisitorId, chatId: reqChatId, department, subject, initialMessage } = req.body;
   
   // Extract or fallback IP address
   const rawIp = (req.headers['x-forwarded-for'] as string) ||
@@ -778,8 +789,8 @@ app.post('/api/chats', (req, res) => {
                 req.socket.remoteAddress ||
                 '103.205.132.42';
   const ipAddress = rawIp.split(',')[0].replace('::ffff:', '').trim() || '103.205.132.42';
-  const phone = customerPhone || '01712345678';
-  const cleanPhone = phone.replace(/[^0-9]/g, '') || '01712345678';
+  const phone = customerPhone ? String(customerPhone).trim() : '';
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
   
   const userAgent = req.headers['user-agent'] || '';
   let deviceType = 'Chrome / Mobile App';
@@ -787,45 +798,58 @@ app.post('/api/chats', (req, res) => {
   else if (/iphone/i.test(userAgent)) deviceType = 'Apple iPhone';
   else if (/mobile/i.test(userAgent)) deviceType = 'Mobile Phone';
 
-  // Generate Chat ID using Phone and IP Address
-  const newChatId = `CHAT-${cleanPhone}-${ipAddress}`;
+  const lookupCustomerId = reqCustomerId || reqVisitorId;
+
+  // Find existing chat session by ID, Customer/Visitor ID, or Phone Number
+  let existingChat = chats.find((c) => {
+    if (reqChatId && c.id === reqChatId) return true;
+    if (lookupCustomerId && (c.customerId === lookupCustomerId || c.customer?.id === lookupCustomerId)) return true;
+    if (cleanPhone && c.customer?.phone && String(c.customer.phone).replace(/[^0-9]/g, '').includes(cleanPhone)) return true;
+    if (cleanPhone && c.id && c.id.includes(cleanPhone)) return true;
+    return false;
+  });
+
+  // Retain customer ID and Chat ID
+  const customerId = existingChat ? (existingChat.customerId || existingChat.customer?.id || lookupCustomerId || ('cust_' + cleanPhone)) : (lookupCustomerId || (cleanPhone ? 'cust_' + cleanPhone : 'cust_' + Date.now()));
+  const activeChatId = existingChat ? existingChat.id : (reqChatId || (cleanPhone ? `CHAT-${cleanPhone}` : `CHAT-${customerId}`));
 
   // Check if customer is blocked
-  if (isUserOrChatBlocked(newChatId, phone, ipAddress)) {
+  if (isUserOrChatBlocked(activeChatId, phone, ipAddress)) {
     return res.status(403).json({
       error: 'আপনার চ্যাট আইডিটি সাময়িকভাবে ব্লক করা হয়েছে। অনুগ্রহ করে সাহায্য পেতে সাপোর্ট টিম বা এডমিনের সাথে যোগাযোগ করুন।',
       isBlocked: true,
     });
   }
 
-  const customerId = 'cust_' + Date.now();
-  let existingChat = chats.find((c) => c.id === newChatId);
-
+  const isReopened = !!existingChat;
   const newChat: ChatSession = existingChat
     ? {
         ...existingChat,
+        customerId,
         customer: {
           ...existingChat.customer,
+          id: customerId,
           name: customerName || existingChat.customer.name,
           email: customerEmail || existingChat.customer.email,
           phone: phone || existingChat.customer.phone,
         },
         department: department || existingChat.department,
         subject: subject || existingChat.subject,
+        status: 'active', // Automatically reopen chat if previously closed or resolved!
         updatedAt: new Date().toISOString(),
         lastMessage: initialMessage || existingChat.lastMessage,
         lastMessageTime: 'Just now',
         unreadCountAgent: (existingChat.unreadCountAgent || 0) + 1,
       }
     : {
-        id: newChatId,
+        id: activeChatId,
         customerId,
         customer: {
           id: customerId,
           name: customerName || 'ভিজিটর',
-          email: customerEmail || `${cleanPhone}@customer.com`,
-          phone: phone,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(customerName || cleanPhone)}`,
+          email: customerEmail || `${cleanPhone || 'visitor'}@customer.com`,
+          phone: phone || '',
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(customerName || cleanPhone || customerId)}`,
           location: 'ঢাকা, বাংলাদেশ',
           ipAddress: ipAddress,
           browser: deviceType,
@@ -835,9 +859,9 @@ app.post('/api/chats', (req, res) => {
           tags: ['নতুন কাস্টমার', 'ফোন চ্যাট'],
         },
         department: department || 'গ্রাহক সহায়তা (Customer Support)',
-        status: 'unassigned',
+        status: 'active',
         priority: 'medium',
-        subject: subject || `চ্যাট অনুরোধ (ফোন: ${phone})`,
+        subject: subject || `চ্যাট অনুরোধ (ফোন: ${phone || 'অনলাইন'})`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         lastMessage: initialMessage || 'লাইভ চ্যাট শুরু করেছেন',
@@ -848,23 +872,23 @@ app.post('/api/chats', (req, res) => {
 
   const initialMsg: ChatMessage = {
     id: 'msg_init_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
-    chatId: newChatId,
+    chatId: activeChatId,
     senderRole: 'customer',
     senderName: customerName || newChat.customer.name || 'Visitor',
     content: initialMessage || 'Hello, I need assistance.',
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
     createdAt: new Date().toISOString(),
     readStatus: 'delivered',
   };
 
   if (existingChat) {
-    const idx = chats.findIndex((c) => c.id === newChatId);
+    const idx = chats.findIndex((c) => c.id === activeChatId);
     if (idx >= 0) chats[idx] = newChat;
-    if (!messages[newChatId]) messages[newChatId] = [];
-    messages[newChatId].push(initialMsg);
+    if (!messages[activeChatId]) messages[activeChatId] = [];
+    messages[activeChatId].push(initialMsg);
   } else {
     chats.unshift(newChat);
-    messages[newChatId] = [initialMsg];
+    messages[activeChatId] = [initialMsg];
   }
 
   // Sync to Firestore
@@ -872,7 +896,7 @@ app.post('/api/chats', (req, res) => {
   syncMessageToFirestore(initialMsg);
 
   broadcast({
-    type: 'new_chat_created',
+    type: isReopened ? 'chat_updated' : 'new_chat_created',
     chat: newChat,
     message: initialMsg,
   });
@@ -881,14 +905,14 @@ app.post('/api/chats', (req, res) => {
   sendInstantGoogleSheetSync(newChat, initialMsg);
 
   // 🤖 Telegram Bot Notification
-  sendTelegramNotification(newChat, initialMessage || 'লাইভ চ্যাট শুরু করেছেন', true);
+  sendTelegramNotification(newChat, initialMessage || 'লাইভ চ্যাট শুরু করেছেন', !isReopened);
 
   // Check AI Auto reply
   if (widgetConfig.enableAiAutoReply) {
-    triggerAiAutoReply(newChatId, initialMessage || 'Hello');
+    triggerAiAutoReply(activeChatId, initialMessage || 'Hello');
   }
 
-  res.json({ chat: newChat, message: initialMsg });
+  res.json({ chat: newChat, message: initialMsg, isReopened });
 });
 
 // GET Single Chat
@@ -955,6 +979,11 @@ app.post('/api/chats/:id/messages', (req, res) => {
     messages[chatId].push(newMessage);
   }
 
+  // Reopen chat automatically if closed or resolved when customer sends a message
+  if (senderRole === 'customer' && (targetChat.status === 'resolved' || targetChat.status === 'closed')) {
+    targetChat.status = 'active';
+  }
+
   targetChat.updatedAt = new Date().toISOString();
   if (!isInternalNote) {
     targetChat.lastMessage = content.trim() || (attachments && attachments.length > 0 ? '📷 [ছবি/ফাইল]' : '');
@@ -965,6 +994,10 @@ app.post('/api/chats/:id/messages', (req, res) => {
       targetChat.unreadCountCustomer = (targetChat.unreadCountCustomer || 0) + 1;
     }
   }
+
+  // Sync to Firestore
+  syncChatToFirestore(targetChat);
+  syncMessageToFirestore(newMessage);
 
   broadcast({
     type: 'new_message',

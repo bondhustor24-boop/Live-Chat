@@ -44,6 +44,7 @@ import {
   deleteMessageFromFirestore
 } from './lib/firestoreSync';
 import { sendTelegramNotification } from './lib/telegramNotify';
+import { getOrCreatePersistentCustomerId, saveCustomerProfile } from './lib/visitorIdentity';
 
 export default function App() {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
@@ -776,13 +777,34 @@ export default function App() {
     department: string;
     subject: string;
     initialMessage: string;
+    problemIssue?: string;
   }) => {
+    const persistentCustomerId = getOrCreatePersistentCustomerId();
+    const cleanPhone = (data.customerPhone || '').replace(/[^0-9]/g, '');
+    saveCustomerProfile(data.customerName, cleanPhone, data.customerEmail);
+
+    // Search for existing chat session of this same customer (by customerChatId, customerId, or phone)
+    const existingChat = chats.find((c) => {
+      if (customerChatId && c.id === customerChatId) return true;
+      if (c.customerId && (c.customerId === persistentCustomerId || c.customer?.id === persistentCustomerId)) return true;
+      if (cleanPhone && c.customer?.phone && c.customer.phone.replace(/[^0-9]/g, '').includes(cleanPhone)) return true;
+      if (cleanPhone && c.id && c.id.includes(cleanPhone)) return true;
+      return false;
+    });
+
+    const targetChatId = existingChat ? existingChat.id : (cleanPhone ? `CHAT-${cleanPhone}` : `CHAT-${persistentCustomerId}`);
+
     let serverOk = false;
     try {
       const res = await fetch('/api/chats', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          chatId: targetChatId,
+          customerId: persistentCustomerId,
+          visitorId: persistentCustomerId,
+        }),
       });
       if (res.ok) {
         const result = await res.json();
@@ -795,16 +817,71 @@ export default function App() {
       console.warn('API /api/chats unavailable (Vercel/Static mode), syncing directly with Firestore');
     }
 
-    if (!serverOk) {
-      const chatId = 'chat_' + Date.now();
-      const customerId = 'cust_' + Date.now();
-      const newSession: ChatSession = {
-        id: chatId,
-        customerId: customerId,
+    const firstMsg: ChatMessage = {
+      id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      chatId: targetChatId,
+      senderRole: 'customer',
+      senderName: data.customerName || existingChat?.customer?.name || 'নতুন গ্রাহক',
+      senderAvatar: existingChat?.customer?.avatar || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+      content: data.initialMessage,
+      timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
+      readStatus: 'delivered',
+    };
+
+    if (existingChat) {
+      // Re-use existing chat room & re-activate it if closed/resolved
+      const updatedChat: ChatSession = {
+        ...existingChat,
+        customerId: existingChat.customerId || persistentCustomerId,
         customer: {
-          id: customerId,
+          ...existingChat.customer,
+          id: existingChat.customer?.id || persistentCustomerId,
+          name: data.customerName || existingChat.customer.name,
+          email: data.customerEmail || existingChat.customer.email,
+          phone: data.customerPhone || existingChat.customer.phone,
+        },
+        department: data.department || existingChat.department,
+        subject: data.subject || existingChat.subject,
+        problemIssue: (data as any).problemIssue || existingChat.problemIssue,
+        status: 'active', // Automatically reopen chat!
+        updatedAt: new Date().toISOString(),
+        lastMessage: data.initialMessage,
+        unreadCountAgent: (existingChat.unreadCountAgent || 0) + 1,
+      };
+
+      setChats((prev) => prev.map((c) => (c.id === existingChat.id ? updatedChat : c)));
+      setMessages((prev) => ({
+        ...prev,
+        [existingChat.id]: [...(prev[existingChat.id] || []), firstMsg],
+      }));
+      setCustomerChatId(existingChat.id);
+
+      syncChatToFirestore(updatedChat);
+      syncMessageToFirestore(firstMsg);
+
+      // Telegram notification
+      sendTelegramNotification(
+        {
+          type: 'new_message',
+          customerName: updatedChat.customer.name,
+          customerPhone: updatedChat.customer.phone,
+          customerEmail: updatedChat.customer.email,
+          department: updatedChat.department,
+          problemIssue: (data as any).problemIssue || data.subject,
+          chatId: existingChat.id,
+          messageText: data.initialMessage,
+        },
+        widgetConfig
+      );
+    } else {
+      // Create first-time new session
+      const newSession: ChatSession = {
+        id: targetChatId,
+        customerId: persistentCustomerId,
+        customer: {
+          id: persistentCustomerId,
           name: data.customerName || 'নতুন গ্রাহক',
-          email: data.customerEmail || 'visitor@example.com',
+          email: data.customerEmail || `${cleanPhone || 'visitor'}@customer.com`,
           phone: data.customerPhone || '',
           avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
           ipAddress: '127.0.0.1 (Web)',
@@ -822,29 +899,16 @@ export default function App() {
         isStarred: false,
       };
 
-      const firstMsg: ChatMessage = {
-        id: 'msg_' + Date.now(),
-        chatId: chatId,
-        senderRole: 'customer',
-        senderName: data.customerName || 'নতুন গ্রাহক',
-        senderAvatar: newSession.customer.avatar,
-        content: data.initialMessage,
-        timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
-        readStatus: 'delivered',
-      };
-
-      setChats((prev) => [newSession, ...prev]);
+      setChats((prev) => [newSession, ...prev.filter((c) => c.id !== targetChatId)]);
       setMessages((prev) => ({
         ...prev,
-        [chatId]: [firstMsg],
+        [targetChatId]: [firstMsg],
       }));
-      setCustomerChatId(chatId);
+      setCustomerChatId(targetChatId);
 
-      // Direct Firestore sync
       syncChatToFirestore(newSession);
       syncMessageToFirestore(firstMsg);
 
-      // Telegram notification on new chat
       sendTelegramNotification(
         {
           type: 'new_chat',
@@ -853,84 +917,111 @@ export default function App() {
           customerEmail: data.customerEmail,
           department: data.department,
           problemIssue: (data as any).problemIssue || data.subject,
-          chatId: chatId,
+          chatId: targetChatId,
           messageText: data.initialMessage,
         },
         widgetConfig
       );
+    }
 
-      // Direct Google Sheet Sync
-      syncToGoogleSheetDirect(widgetConfig.appsScriptUrl, {
-        rows: [{
-          timestamp: firstMsg.timestamp,
-          chatId: chatId,
-          customerName: newSession.customer.name,
-          customerEmail: newSession.customer.email,
-          department: newSession.department,
-          status: newSession.status,
-          sender: `${firstMsg.senderName} (customer)`,
-          content: firstMsg.content,
-          rating: 'N/A'
-        }]
-      });
+    // Direct Google Sheet Sync
+    syncToGoogleSheetDirect(widgetConfig.appsScriptUrl, {
+      rows: [{
+        timestamp: firstMsg.timestamp,
+        chatId: targetChatId,
+        customerName: data.customerName,
+        customerEmail: data.customerEmail,
+        department: data.department,
+        status: 'active',
+        sender: `${firstMsg.senderName} (customer)`,
+        content: firstMsg.content,
+        rating: 'N/A'
+      }]
+    });
 
-      // AI auto reply when in client static/Vercel mode
-      if (widgetConfig.enableAiAutoReply) {
-        setTimeout(() => {
-          const aiText = getSmartLocalAiReply(data.initialMessage);
-          const aiMsg: ChatMessage = {
-            id: 'msg_ai_' + Date.now(),
-            chatId: chatId,
-            senderRole: 'agent',
-            senderName: widgetConfig.botName || 'নোভা এআই সহকারী',
-            senderAvatar: widgetConfig.botAvatar,
-            content: aiText,
-            timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
-            readStatus: 'read',
-          };
-          setMessages((prev) => ({
-            ...prev,
-            [chatId]: [...(prev[chatId] || []), aiMsg],
-          }));
-          const updatedChat = { ...newSession, lastMessage: aiMsg.content, updatedAt: new Date().toISOString() };
-          setChats((prev) =>
-            prev.map((c) => (c.id === chatId ? updatedChat : c))
-          );
-          syncMessageToFirestore(aiMsg);
-          syncChatToFirestore(updatedChat);
+    // AI auto reply when in client static/Vercel mode
+    if (widgetConfig.enableAiAutoReply) {
+      setTimeout(() => {
+        const aiText = getSmartLocalAiReply(data.initialMessage);
+        const aiMsg: ChatMessage = {
+          id: 'msg_ai_' + Date.now(),
+          chatId: targetChatId,
+          senderRole: 'agent',
+          senderName: widgetConfig.botName || 'নোভা এআই সহকারী',
+          senderAvatar: widgetConfig.botAvatar,
+          content: aiText,
+          timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
+          readStatus: 'read',
+        };
+        setMessages((prev) => ({
+          ...prev,
+          [targetChatId]: [...(prev[targetChatId] || []), aiMsg],
+        }));
+        setChats((prev) =>
+          prev.map((c) => (c.id === targetChatId ? { ...c, lastMessage: aiMsg.content, updatedAt: new Date().toISOString() } : c))
+        );
+        syncMessageToFirestore(aiMsg);
 
-          triggerMessageNotification(widgetConfig.botName, aiMsg.content);
+        triggerMessageNotification(widgetConfig.botName, aiMsg.content);
 
-          syncToGoogleSheetDirect(widgetConfig.appsScriptUrl, {
-            rows: [{
-              timestamp: aiMsg.timestamp,
-              chatId: chatId,
-              customerName: newSession.customer.name,
-              customerEmail: newSession.customer.email,
-              department: newSession.department,
-              status: newSession.status,
-              sender: `${aiMsg.senderName} (AI Bot)`,
-              content: aiMsg.content,
-              rating: 'N/A'
-            }]
-          });
-        }, 1200);
-      }
+        syncToGoogleSheetDirect(widgetConfig.appsScriptUrl, {
+          rows: [{
+            timestamp: aiMsg.timestamp,
+            chatId: targetChatId,
+            customerName: data.customerName,
+            customerEmail: data.customerEmail,
+            department: data.department,
+            status: 'active',
+            sender: `${aiMsg.senderName} (AI Bot)`,
+            content: aiMsg.content,
+            rating: 'N/A'
+          }]
+        });
+      }, 1200);
     }
   };
 
-  const handleSendCustomerMessage = async (text: string, attachments?: any[]) => {
-    if (!customerChatId || (!text.trim() && (!attachments || attachments.length === 0))) return;
+  const handleReopenCustomerChat = () => {
+    const activeChat = customerSession || chats.find((c) => c.id === customerChatId);
+    if (!activeChat) return;
 
-    const currentChat = chats.find((c) => c.id === customerChatId);
-    const msgId = 'msg_' + Date.now();
+    const reopenedChat: ChatSession = {
+      ...activeChat,
+      status: 'active',
+      updatedAt: new Date().toISOString(),
+      lastMessage: 'চ্যাট পুনরায় চালু করা হয়েছে',
+    };
+
+    setChats((prev) => prev.map((c) => (c.id === activeChat.id ? reopenedChat : c)));
+    setCustomerChatId(activeChat.id);
+    syncChatToFirestore(reopenedChat);
+
+    try {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'change_status',
+            chatId: activeChat.id,
+            status: 'active',
+          })
+        );
+      }
+    } catch (e) {}
+  };
+
+  const handleSendCustomerMessage = async (text: string, attachments?: any[]) => {
+    const activeChatId = customerChatId || customerSession?.id;
+    if (!activeChatId || (!text.trim() && (!attachments || attachments.length === 0))) return;
+
+    const currentChat = chats.find((c) => c.id === activeChatId) || customerSession;
+    const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
     const displayMsg = text.trim() || (attachments && attachments.length > 0 ? '📷 [ছবি/ফাইল]' : '');
     const newMsg: ChatMessage = {
       id: msgId,
-      chatId: customerChatId,
+      chatId: activeChatId,
       senderRole: 'customer',
-      senderName: currentChat?.customer.name || 'Visitor',
-      senderAvatar: currentChat?.customer.avatar,
+      senderName: currentChat?.customer?.name || 'Visitor',
+      senderAvatar: currentChat?.customer?.avatar,
       content: displayMsg,
       attachments,
       timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
@@ -939,12 +1030,14 @@ export default function App() {
 
     setMessages((prev) => ({
       ...prev,
-      [customerChatId]: [...(prev[customerChatId] || []), newMsg],
+      [activeChatId]: [...(prev[activeChatId] || []), newMsg],
     }));
 
-    const updatedChat = currentChat
+    // Auto reopen chat if it was closed or resolved
+    const updatedChat: ChatSession | null = currentChat
       ? {
           ...currentChat,
+          status: 'active', // If chat was resolved/closed, reopen automatically on new customer message
           lastMessage: displayMsg,
           updatedAt: new Date().toISOString(),
           unreadCountAgent: (currentChat.unreadCountAgent || 0) + 1,
@@ -953,7 +1046,7 @@ export default function App() {
 
     if (updatedChat) {
       setChats((prev) =>
-        prev.map((c) => (c.id === customerChatId ? updatedChat : c))
+        prev.map((c) => (c.id === activeChatId ? updatedChat : c))
       );
       syncChatToFirestore(updatedChat);
     }
@@ -969,7 +1062,7 @@ export default function App() {
         customerPhone: currentChat?.customer.phone,
         customerIp: currentChat?.customer.ipAddress,
         problemIssue: currentChat?.problemIssue,
-        chatId: customerChatId,
+        chatId: activeChatId,
         messageText: displayMsg,
         photoUrl: attachments && attachments.length > 0 ? attachments[0].url : undefined,
         photoName: attachments && attachments.length > 0 ? attachments[0].name : undefined,
@@ -983,7 +1076,7 @@ export default function App() {
         wsRef.current.send(
           JSON.stringify({
             type: 'message',
-            chatId: customerChatId,
+            chatId: activeChatId,
             senderRole: 'customer',
             senderName: newMsg.senderName,
             senderAvatar: newMsg.senderAvatar,
@@ -992,7 +1085,7 @@ export default function App() {
           })
         );
       } else {
-        await fetch(`/api/chats/${encodeURIComponent(customerChatId)}/messages`, {
+        await fetch(`/api/chats/${encodeURIComponent(activeChatId)}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newMsg),
@@ -1008,7 +1101,7 @@ export default function App() {
         const aiText = getSmartLocalAiReply(text);
         const aiMsg: ChatMessage = {
           id: 'msg_ai_' + Date.now(),
-          chatId: customerChatId,
+          chatId: activeChatId,
           senderRole: 'agent',
           senderName: widgetConfig.botName || 'নোভা এআই সহকারী',
           senderAvatar: widgetConfig.botAvatar,
@@ -1018,16 +1111,17 @@ export default function App() {
         };
         setMessages((prev) => ({
           ...prev,
-          [customerChatId]: [...(prev[customerChatId] || []), aiMsg],
+          [activeChatId]: [...(prev[activeChatId] || []), aiMsg],
         }));
         if (currentChat) {
-          const chatWithAiReply = {
+          const chatWithAiReply: ChatSession = {
             ...currentChat,
+            status: 'active',
             lastMessage: aiMsg.content,
             updatedAt: new Date().toISOString(),
           };
           setChats((prev) =>
-            prev.map((c) => (c.id === customerChatId ? chatWithAiReply : c))
+            prev.map((c) => (c.id === activeChatId ? chatWithAiReply : c))
           );
           syncChatToFirestore(chatWithAiReply);
         }
@@ -1041,11 +1135,11 @@ export default function App() {
         rows: [
           {
             timestamp: newMsg.timestamp,
-            chatId: customerChatId,
+            chatId: activeChatId,
             customerName: currentChat.customer.name,
             customerEmail: currentChat.customer.email,
             department: currentChat.department,
-            status: currentChat.status,
+            status: 'active',
             sender: `${newMsg.senderName} (customer)`,
             content: text,
             rating: currentChat.satisfactionRating ? `${currentChat.satisfactionRating}/5` : 'N/A',
@@ -1507,8 +1601,29 @@ export default function App() {
   // Selected chat data
   const selectedChat = chats.find((c) => c.id === selectedChatId) || null;
   const currentChatMessages = selectedChatId ? messages[selectedChatId] || [] : [];
-  const customerSession = chats.find((c) => c.id === customerChatId) || null;
-  const customerMessages = customerChatId ? messages[customerChatId] || [] : [];
+  
+  // Persistent Customer Session identification (prevent duplicates, retain visitor identity)
+  const customerSession = (() => {
+    if (customerChatId) {
+      const found = chats.find((c) => c.id === customerChatId);
+      if (found) return found;
+    }
+    const pid = typeof window !== 'undefined' ? (localStorage.getItem('novachat_customer_id') || localStorage.getItem('novachat_visitor_id')) : null;
+    const pphone = typeof window !== 'undefined' ? localStorage.getItem('novachat_customer_phone') : null;
+    const cleanP = pphone ? pphone.replace(/[^0-9]/g, '') : '';
+    if (pid || cleanP) {
+      const matched = chats.find((c) => {
+        if (pid && (c.customerId === pid || c.customer?.id === pid)) return true;
+        if (cleanP && c.customer?.phone && c.customer.phone.replace(/[^0-9]/g, '').includes(cleanP)) return true;
+        if (cleanP && c.id && c.id.includes(cleanP)) return true;
+        return false;
+      });
+      if (matched) return matched;
+    }
+    return null;
+  })();
+
+  const customerMessages = customerSession ? (messages[customerSession.id] || []) : (customerChatId ? (messages[customerChatId] || []) : []);
 
   const unreadTotal = chats.reduce((acc, c) => acc + (c.unreadCountAgent || 0), 0);
 
@@ -1575,7 +1690,7 @@ export default function App() {
               onSendQuickReply={(text) => handleSendCustomerMessage(text)}
               onTyping={handleCustomerTyping}
               onSubmitRating={handleSubmitRating}
-              onNewChat={() => setCustomerChatId(null)}
+              onNewChat={handleReopenCustomerChat}
               isTypingAgent={isTypingAgent}
             />
           </div>
