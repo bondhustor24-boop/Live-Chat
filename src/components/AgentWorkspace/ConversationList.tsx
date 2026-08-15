@@ -162,7 +162,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center justify-between gap-1 mb-1.5">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
                         {chat.department}
@@ -186,11 +186,18 @@ export const ConversationList: React.FC<ConversationListProps> = ({
 
                     {/* Unread Badge */}
                     {hasUnread && (
-                      <span className="bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center shrink-0">
-                        {chat.unreadCountAgent}
+                      <span className="bg-rose-600 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 flex items-center justify-center shrink-0 shadow-xs animate-pulse">
+                        {chat.unreadCountAgent}টি নতুন
                       </span>
                     )}
                   </div>
+
+                  {/* Last Message Snippet */}
+                  {chat.lastMessage && (
+                    <p className={`text-xs truncate ${hasUnread ? 'font-bold text-slate-900 bg-amber-100/60 px-1.5 py-0.5 rounded' : 'text-slate-500'}`}>
+                      💬 {chat.lastMessage}
+                    </p>
+                  )}
                 </div>
               </div>
             );

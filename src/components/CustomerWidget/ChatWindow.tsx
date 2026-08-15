@@ -37,18 +37,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [inputText, setInputText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [attachments, setAttachments] = useState<any[]>([]);
-  const [dismissPromoBanner, setDismissPromoBanner] = useState(false);
-  const [chatPromoIdx, setChatPromoIdx] = useState(0);
 
-  const activeChatPromos = (
-    widgetConfig.promoBanners && widgetConfig.promoBanners.length > 0
-      ? widgetConfig.promoBanners
-      : widgetConfig.promoBanner
-      ? [widgetConfig.promoBanner]
-      : []
-  ).filter((p) => p.enabled && p.imageUrl);
-
-  const currentChatPromo = activeChatPromos[chatPromoIdx % activeChatPromos.length];
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<any>(null);
 
@@ -379,99 +368,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <p className="text-xs font-medium text-slate-800">{widgetConfig.welcomeMessage}</p>
           <p className="text-[10px] text-slate-500">ডিপার্টমেন্ট: {chat.department}</p>
         </div>
-
-        {/* Website Promotion Banner Carousel in Chat Window */}
-        {activeChatPromos.length > 0 && currentChatPromo && !dismissPromoBanner && (
-          <div className="bg-gradient-to-br from-purple-900 to-indigo-950 text-white rounded-2xl p-3 shadow-lg border border-purple-500/40 space-y-2.5 relative my-2 group">
-            <button
-              type="button"
-              onClick={() => setDismissPromoBanner(true)}
-              title="বন্ধ করুন"
-              className="absolute top-2 right-2 p-1 bg-black/40 hover:bg-black/60 text-white/80 rounded-full transition cursor-pointer z-10"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-
-            <div className="flex items-center justify-between text-amber-300 font-bold text-[10px] uppercase tracking-wider pr-8">
-              <div className="flex items-center gap-1.5 truncate">
-                <Megaphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="truncate">{currentChatPromo.title || 'স্পনসরড ওয়েবসাইট'}</span>
-              </div>
-
-              {activeChatPromos.length > 1 && (
-                <div className="flex items-center gap-1 shrink-0 ml-1">
-                  <span className="text-[10px] text-purple-200 font-mono">
-                    {chatPromoIdx + 1}/{activeChatPromos.length}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setChatPromoIdx((prev) => (prev - 1 + activeChatPromos.length) % activeChatPromos.length)}
-                    className="p-0.5 bg-white/10 hover:bg-white/20 rounded-md transition text-white cursor-pointer"
-                    title="পূর্ববর্তী ওয়েবসাইট"
-                  >
-                    <ChevronLeft className="w-3 h-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setChatPromoIdx((prev) => (prev + 1) % activeChatPromos.length)}
-                    className="p-0.5 bg-white/10 hover:bg-white/20 rounded-md transition text-white cursor-pointer"
-                    title="পরবর্তী ওয়েবসাইট"
-                  >
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Photo */}
-            <a
-              href={currentChatPromo.linkUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-xl overflow-hidden border border-white/20 group relative shadow-md"
-            >
-              <img
-                src={currentChatPromo.imageUrl}
-                alt={currentChatPromo.title}
-                className="w-full h-32 object-cover group-hover:scale-105 transition duration-300"
-              />
-            </a>
-
-            {/* Description */}
-            {currentChatPromo.description && (
-              <p className="text-[11px] text-purple-100 leading-snug">
-                {currentChatPromo.description}
-              </p>
-            )}
-
-            {/* Website Link Button Underneath Photo */}
-            <a
-              href={currentChatPromo.linkUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2 px-3 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition"
-            >
-              <span>{currentChatPromo.buttonText || 'ওয়েবসাইট ভিজিট করুন'}</span>
-              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-            </a>
-
-            {/* Indicator Dots */}
-            {activeChatPromos.length > 1 && (
-              <div className="flex items-center justify-center gap-1 pt-0.5">
-                {activeChatPromos.map((_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setChatPromoIdx(i)}
-                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                      i === chatPromoIdx ? 'w-4 bg-amber-400' : 'w-1.5 bg-white/40'
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {messages
           .filter((m) => !m.isInternalNote) // Customer does not see agent internal whisper notes

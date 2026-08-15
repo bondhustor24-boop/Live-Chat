@@ -335,9 +335,9 @@ export default function App() {
     };
   }, []);
 
-  // Auto mark customer messages as READ when Agent views selectedChatId
+  // Auto mark customer messages as READ ONLY when Agent is actively viewing selectedChatId in Agent Workspace
   useEffect(() => {
-    if (!selectedChatId) return;
+    if (!isAdminLoggedIn || activeTab !== 'agent_workspace' || !selectedChatId) return;
     const currentMsgs = messages[selectedChatId];
     if (!currentMsgs || currentMsgs.length === 0) return;
 
@@ -345,7 +345,7 @@ export default function App() {
     const updatedMsgs = currentMsgs.map((m) => {
       if (m.senderRole === 'customer' && m.readStatus !== 'read') {
         hasUnread = true;
-        const readMsg = { ...m, readStatus: 'read' as const };
+        const readMsg = { ...m, readStatus: 'read' as const, seenAt: new Date().toISOString(), seenBy: activeAgent.name };
         syncMessageToFirestore(readMsg);
         return readMsg;
       }
@@ -360,15 +360,16 @@ export default function App() {
       setChats((prev) =>
         prev.map((c) => {
           if (c.id === selectedChatId && (c.unreadCountAgent || 0) > 0) {
-            const updatedChat = { ...c, unreadCountAgent: 0 };
+            const updatedChat = { ...c, unreadCountAgent: 0, adminSeen: true, adminSeenAt: new Date().toISOString(), adminSeenBy: activeAgent.name };
             syncChatToFirestore(updatedChat);
             return updatedChat;
           }
           return c;
         })
       );
+      markChatAsSeenByAdminInFirestore(selectedChatId, activeAgent.name);
     }
-  }, [selectedChatId, messages[selectedChatId]?.length]);
+  }, [selectedChatId, activeTab, isAdminLoggedIn, messages[selectedChatId]?.length]);
 
   // Auto mark agent messages as READ when Customer views customerChatId
   useEffect(() => {
@@ -773,7 +774,6 @@ export default function App() {
         const result = await res.json();
         if (result.chat) {
           setCustomerChatId(result.chat.id);
-          setSelectedChatId(result.chat.id);
           serverOk = true;
         }
       }
@@ -825,7 +825,6 @@ export default function App() {
         [chatId]: [firstMsg],
       }));
       setCustomerChatId(chatId);
-      setSelectedChatId(chatId);
 
       // Direct Firestore sync
       syncChatToFirestore(newSession);
