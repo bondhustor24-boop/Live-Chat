@@ -113,25 +113,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUnblockUser,
   onStartNewChat,
 }) => {
-  // Authentication State
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('novachat_admin_auth') === 'true';
-  });
-  const [currentAdminProfile, setCurrentAdminProfile] = useState<AdminAccount | null>(() => {
-    const saved = localStorage.getItem('novachat_admin_profile');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return null;
-      }
+  const currentAdminProfile: AdminAccount | null = (() => {
+    try {
+      const saved = localStorage.getItem('novachat_admin_profile');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
     }
-    return null;
-  });
-  const [adminEmail, setAdminEmail] = useState('saju2470');
-  const [adminPassword, setAdminPassword] = useState('20203494aa');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [loginError, setLoginError] = useState('');
+  })();
 
   // Font Size Management (User requested 7px default)
   const [adminFontSize, setAdminFontSize] = useState<string>(() => {
@@ -506,45 +495,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isTestingScript, setIsTestingScript] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
-  // Handle Login Submit strictly via Firebase Firestore
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoggingIn(true);
-    setLoginError('');
-
-    try {
-      const result = await authenticateAdminWithFirestore(adminEmail.trim(), adminPassword.trim());
-      if (result.success && result.admin) {
-        setIsLoggedIn(true);
-        setCurrentAdminProfile(result.admin);
-        localStorage.setItem('novachat_admin_auth', 'true');
-        localStorage.setItem('novachat_admin_profile', JSON.stringify(result.admin));
-        setLoginError('');
-      } else {
-        setLoginError(result.error || 'ইউজারনেম বা পাসওয়ার্ড সঠিক নয়। Firebase একাউন্ট চেক করুন।');
-      }
-    } catch (err: any) {
-      console.error('Firebase admin login error:', err);
-      setLoginError('Firebase সার্ভার সংযোগে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  // Quick Demo Login
-  const fillDemoLogin = () => {
-    setAdminEmail('saju2470');
-    setAdminPassword('20203494aa');
-  };
-
-  // Handle Logout
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentAdminProfile(null);
-    localStorage.removeItem('novachat_admin_auth');
-    localStorage.removeItem('novachat_admin_profile');
-  };
-
   // Handle Add New Agent
   const handleCreateAgent = (e: React.FormEvent) => {
     e.preventDefault();
@@ -616,110 +566,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const activeChats = chats.filter((c) => c.status === 'active').length;
   const waitingChats = chats.filter((c) => c.status === 'waiting').length;
 
-  // IF NOT LOGGED IN -> SHOW ADMIN LOGIN FORM
-  if (!isLoggedIn) {
-    return (
-      <div id="admin-login-page" className="flex-1 bg-slate-900 flex items-center justify-center p-4 overflow-y-auto min-h-full">
-        <div className="w-full max-w-md bg-slate-950 border border-slate-800 text-white rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6 animate-in fade-in">
-          
-          {/* Header */}
-          <div className="text-center space-y-2">
-            <div className="w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-blue-500/20">
-              <ShieldCheck className="w-7 h-7 text-white" />
-            </div>
-            <h2 className="text-xl font-bold tracking-tight text-white">অ্যাডমিন প্যানেল লগইন</h2>
-            <p className="text-xs text-slate-400">
-              নোভাচ্যাট লাইভ সাপোর্ট ও গুগল শিট ম্যানেজমেন্ট কন্ট্রোল প্যানেলে প্রবেশ করুন
-            </p>
-          </div>
-
-          {/* Quick Demo Credentials Info Callout */}
-          <div className="bg-slate-900/90 border border-blue-500/30 p-3.5 rounded-xl space-y-2 text-xs">
-            <div className="flex items-center justify-between text-blue-300 font-semibold">
-              <span className="flex items-center gap-1.5">
-                <KeyRound className="w-4 h-4 text-blue-400" />
-                <span>ডেমো অ্যাথেনটিকেশন লগইন</span>
-              </span>
-              <button
-                type="button"
-                onClick={fillDemoLogin}
-                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] rounded-lg transition"
-              >
-                স্বয়ংক্রিয় পূরণ করুন
-              </button>
-            </div>
-            <div className="font-mono text-[11px] text-slate-300 space-y-0.5">
-              <p>ইউজারনেম / ইমেইল: <span className="text-blue-300 font-bold">saju2470</span></p>
-              <p>পাসওয়ার্ড: <span className="text-blue-300 font-bold">20203494aa</span></p>
-            </div>
-          </div>
-
-          {/* Login Form */}
-          <form onSubmit={handleLogin} className="space-y-4 text-xs">
-            {loginError && (
-              <div className="p-3 bg-rose-950/80 border border-rose-500/50 rounded-xl text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>{loginError}</span>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                অ্যাডমিন ইউজারনেম অথবা ইমেইল এড্রেস
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-                <input
-                  type="text"
-                  required
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                  placeholder="saju2470 অথবা admin@novachat.com"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">পাসওয়ার্ড</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-                <input
-                  type="password"
-                  required
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
-            >
-              {isLoggingIn ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Firebase থেকে যাচাই করা হচ্ছে...</span>
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>অ্যাডমিন প্যানেলে লগইন করুন (Firebase)</span>
-                </>
-              )}
-            </button>
-          </form>
-
-        </div>
-      </div>
-    );
-  }
-
-  // LOGGED IN -> ADMIN DASHBOARD VIEW
   return (
     <div
       id="admin-dashboard-page"
@@ -743,9 +589,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <span className="font-bold text-slate-800 text-[10px] sm:text-xs">এডমিন কন্ট্রোল</span>
               <span className="text-[7px] bg-emerald-500/20 text-emerald-700 font-extrabold uppercase px-1.5 py-0.2 rounded">
                 সক্রিয়
-              </span>
-              <span className="text-[7px] text-slate-400 font-mono hidden sm:inline">
-                ({adminEmail})
               </span>
             </div>
           </div>
@@ -787,16 +630,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             >
               <Code className="w-3 h-3" />
               <span>Code.gs</span>
-            </button>
-
-            {/* Logout */}
-            <button
-              onClick={handleLogout}
-              className="px-2 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-[8px] sm:text-[9px] font-bold rounded-lg flex items-center gap-1 transition cursor-pointer"
-              title="এডমিন লগআউট"
-            >
-              <LogOut className="w-3 h-3" />
-              <span>লগআউট</span>
             </button>
           </div>
         </div>

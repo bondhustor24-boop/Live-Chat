@@ -39,7 +39,8 @@ import {
   syncWidgetConfigToFirestore,
   loadFirestoreData,
   setupFirestoreRealtimeListeners,
-  authenticateAdminWithFirestore
+  authenticateAdminWithFirestore,
+  markChatAsSeenByAdminInFirestore
 } from './lib/firestoreSync';
 import { sendTelegramNotification } from './lib/telegramNotify';
 
