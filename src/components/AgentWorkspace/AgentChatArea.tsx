@@ -15,7 +15,8 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
-  ClipboardList
+  ClipboardList,
+  Trash2
 } from 'lucide-react';
 import { ChatSession, ChatMessage, Agent, CannedResponse } from '../../types';
 import { LoadingSpinner } from '../LoadingSpinner';
@@ -32,6 +33,7 @@ interface AgentChatAreaProps {
   onChangeStatus: (chatId: string, status: any) => void;
   onToggleStar: (chatId: string) => void;
   onTyping: (isTyping: boolean) => void;
+  onDeleteMessage?: (chatId: string, messageId: string) => void;
   isCustomerTyping?: boolean;
   onBackToList?: () => void;
 }
@@ -47,6 +49,7 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
   onChangeStatus,
   onToggleStar,
   onTyping,
+  onDeleteMessage,
   isCustomerTyping,
   onBackToList
 }) => {
@@ -313,22 +316,40 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
 
           if (isNote) {
             return (
-              <div key={msg.id ? `${msg.id}_${idx}` : `note_${idx}`} className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3 my-2 shadow-2xs">
-                <div className="flex items-center gap-1.5 text-amber-800 font-semibold text-[11px] mb-1">
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Internal Agent Whisper Note ({msg.senderName})</span>
-                  <span>•</span>
-                  <span>{msg.timestamp}</span>
+              <div key={msg.id ? `${msg.id}_${idx}` : `note_${idx}`} className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3 my-2 shadow-2xs group relative">
+                <div className="flex items-center justify-between gap-1.5 text-amber-800 font-semibold text-[11px] mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Internal Agent Whisper Note ({msg.senderName})</span>
+                    <span>•</span>
+                    <span>{msg.timestamp}</span>
+                  </div>
+                  {onDeleteMessage && msg.id && (
+                    <button
+                      onClick={() => {
+                        if (confirm('আপনি কি এই ইন্টারনাল নোটটি ডিলিট করতে চান?')) {
+                          onDeleteMessage(chat.id, msg.id);
+                        }
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer"
+                      title="নোট ডিলিট করুন"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
                 <p className="text-amber-900 font-medium text-xs whitespace-pre-wrap">{msg.content}</p>
               </div>
             );
           }
 
+          // Check if consecutive messages are duplicate
+          const isDuplicate = idx > 0 && messages[idx - 1]?.content === msg.content && messages[idx - 1]?.senderRole === msg.senderRole;
+
           return (
             <div
               key={msg.id ? `${msg.id}_${idx}` : `msg_${idx}`}
-              className={`flex gap-2.5 ${isCustomer ? 'flex-row' : 'flex-row-reverse'} items-end`}
+              className={`flex gap-2.5 ${isCustomer ? 'flex-row' : 'flex-row-reverse'} items-end group`}
             >
               <img
                 src={msg.senderAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
@@ -341,6 +362,11 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
                   <span>{msg.senderName}</span>
                   <span>•</span>
                   <span>{msg.timestamp}</span>
+                  {isDuplicate && (
+                    <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.2 rounded border border-amber-300">
+                      ডুপ্লিকেট মেসেজ
+                    </span>
+                  )}
                   {!isCustomer && (
                     <span className="flex items-center gap-0.5 ml-0.5" title={msg.readStatus === 'read' ? 'গ্রাহক দেখেছে (Read)' : 'পাঠানো হয়েছে'}>
                       {msg.readStatus === 'read' ? (
@@ -351,6 +377,19 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
                         <Check className="w-3.5 h-3.5 text-slate-400" />
                       )}
                     </span>
+                  )}
+                  {onDeleteMessage && msg.id && (
+                    <button
+                      onClick={() => {
+                        if (confirm('আপনি কি এই মেসেজটি ডিলিট করতে চান? (ডাবল এসএমএস রিমুভ)')) {
+                          onDeleteMessage(chat.id, msg.id);
+                        }
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer ml-1"
+                      title="মেসেজ ডিলিট করুন (ডাবল এসএমএস রিমুভ)"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   )}
                 </div>
 

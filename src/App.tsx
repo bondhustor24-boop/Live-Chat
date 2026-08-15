@@ -1372,6 +1372,56 @@ export default function App() {
     } catch (e) {}
   };
 
+  const handleDeleteMessage = async (chatId: string, messageId: string) => {
+    if (!chatId || !messageId) return;
+
+    setMessages((prev) => {
+      const currentList = prev[chatId] || [];
+      const updatedList = currentList.filter((m) => m.id !== messageId);
+      
+      const remainingLastMsg = updatedList[updatedList.length - 1];
+      setChats((prevChats) =>
+        prevChats.map((c) => {
+          if (c.id === chatId) {
+            const updatedChat = {
+              ...c,
+              lastMessage: remainingLastMsg ? remainingLastMsg.content : '',
+              updatedAt: new Date().toISOString(),
+            };
+            syncChatToFirestore(updatedChat);
+            return updatedChat;
+          }
+          return c;
+        })
+      );
+
+      return {
+        ...prev,
+        [chatId]: updatedList,
+      };
+    });
+
+    deleteMessageFromFirestore(messageId, chatId);
+
+    try {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'delete_message',
+            chatId,
+            messageId,
+          })
+        );
+      } else {
+        await fetch(`/api/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`, {
+          method: 'DELETE',
+        });
+      }
+    } catch (e) {
+      console.warn('Delete message network warning:', e);
+    }
+  };
+
   const handleAgentStatusChange = async (status: 'online' | 'away' | 'offline') => {
     const updated = { ...activeAgent, status };
     setActiveAgent(updated);
@@ -1572,6 +1622,7 @@ export default function App() {
                 onChangeStatus={handleChangeStatus}
                 onToggleStar={handleToggleStar}
                 onTyping={handleAgentTyping}
+                onDeleteMessage={handleDeleteMessage}
                 isCustomerTyping={isCustomerTyping}
                 onBackToList={() => setMobileWorkspaceView('list')}
               />
@@ -1633,6 +1684,7 @@ export default function App() {
             onBlockUser={handleBlockUser}
             onUnblockUser={handleUnblockUser}
             onStartNewChat={handleStartCustomerChat}
+            onDeleteMessage={handleDeleteMessage}
           />
         )}
       </main>

@@ -93,6 +93,7 @@ interface AdminPanelProps {
   onBlockUser?: (chatId: string, phone?: string, ipAddress?: string, name?: string, reason?: string) => void;
   onUnblockUser?: (id: string) => void;
   onStartNewChat?: (data: { customerName: string; customerPhone?: string; customerEmail: string; department: string; subject: string; problemIssue?: string; initialMessage: string }) => void;
+  onDeleteMessage?: (chatId: string, messageId: string) => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -112,6 +113,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onBlockUser,
   onUnblockUser,
   onStartNewChat,
+  onDeleteMessage,
 }) => {
   const currentAdminProfile: AdminAccount | null = (() => {
     try {
@@ -1246,17 +1248,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                       if (isInternal) {
                         return (
-                          <div key={m.id ? `${m.id}_${idx}` : `note_${idx}`} className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs my-2">
-                            <span className="font-bold text-amber-800">📌 ইন্টারনাল নোট (এডমিন): </span>
-                            <span>{m.content}</span>
+                          <div key={m.id ? `${m.id}_${idx}` : `note_${idx}`} className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs my-2 group relative">
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className="font-bold text-amber-800">📌 ইন্টারনাল নোট (এডমিন): </span>
+                              {onDeleteMessage && m.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm('আপনি কি এই ইন্টারনাল নোটটি ডিলিট করতে চান?')) {
+                                      onDeleteMessage(activeChatSession.id, m.id);
+                                    }
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                  title="নোট ডিলিট করুন"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                            <div>{m.content}</div>
                           </div>
                         );
                       }
 
+                      // Check if consecutive messages are duplicate
+                      const isDuplicate = idx > 0 && activeMessages[idx - 1]?.content === m.content && activeMessages[idx - 1]?.senderRole === m.senderRole;
+
                       return (
                         <div
                           key={m.id ? `${m.id}_${idx}` : `msg_${idx}`}
-                          className={`flex items-end gap-2 text-xs ${
+                          className={`flex items-end gap-2 text-xs group ${
                             isCustomer ? 'justify-start' : 'justify-end'
                           }`}
                         >
@@ -1275,13 +1296,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 : 'bg-slate-900 text-white rounded-br-none shadow-sm'
                             }`}
                           >
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={`font-bold text-[10px] ${isCustomer ? 'text-slate-500' : 'text-blue-300'}`}>
-                                {isCustomer ? maskUserInfo(m.senderName || activeChatSession.customer.name, 'name') : (m.senderName || 'এডমিন')}
-                              </span>
-                              <span className={`text-[9px] ${isCustomer ? 'text-slate-400' : 'text-slate-400'}`}>
-                                {m.timestamp}
-                              </span>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`font-bold text-[10px] ${isCustomer ? 'text-slate-500' : 'text-blue-300'}`}>
+                                  {isCustomer ? maskUserInfo(m.senderName || activeChatSession.customer.name, 'name') : (m.senderName || 'এডমিন')}
+                                </span>
+                                <span className={`text-[9px] ${isCustomer ? 'text-slate-400' : 'text-slate-400'}`}>
+                                  {m.timestamp}
+                                </span>
+                                {isDuplicate && (
+                                  <span className="bg-amber-100 text-amber-900 text-[8px] font-bold px-1 rounded border border-amber-300">
+                                    ডুপ্লিকেট এসএমএস
+                                  </span>
+                                )}
+                              </div>
+                              {onDeleteMessage && m.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm('আপনি কি এই মেসেজটি ডিলিট করতে চান? (ডাবল এসএমএস রিমুভ)')) {
+                                      onDeleteMessage(activeChatSession.id, m.id);
+                                    }
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-slate-400 hover:text-rose-400 rounded cursor-pointer"
+                                  title="মেসেজ ডিলিট করুন (ডাবল এসএমএস রিমুভ)"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
                             </div>
                             <div className="whitespace-pre-wrap font-sans text-xs leading-relaxed">
                               {m.content}

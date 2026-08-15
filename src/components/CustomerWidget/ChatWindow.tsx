@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2, ClipboardList, ExternalLink, AlertCircle, CheckCircle2, Megaphone, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2, ClipboardList, ExternalLink, AlertCircle, CheckCircle2, Megaphone, ChevronLeft, ChevronRight, MessageSquarePlus, Lock } from 'lucide-react';
 import { ChatSession, ChatMessage, WidgetConfig } from '../../types';
 import { sendTelegramNotification } from '../../lib/telegramNotify';
 
@@ -55,8 +55,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }, 1500);
   };
 
+  const isChatClosed = chat.status === 'resolved' || chat.status === 'closed' || (chat as any).isClosed;
+
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isChatClosed || chat.isBlocked) return;
     if (!inputText.trim() && attachments.length === 0) return;
     onSendMessage(inputText, attachments.length > 0 ? attachments : undefined);
     setInputText('');
@@ -554,6 +557,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       {chat.isBlocked ? (
         <div className="p-3 bg-rose-100 border-t border-rose-300 text-rose-800 text-xs font-bold text-center flex items-center justify-center gap-2">
           <span>🚫 আপনার চ্যাট আইডিটি সাময়িকভাবে ব্লক করা হয়েছে।</span>
+        </div>
+      ) : isChatClosed ? (
+        <div className="p-4 bg-slate-50 border-t border-slate-200 text-center space-y-2.5 animate-in fade-in">
+          <div className="flex items-center justify-center gap-2 text-slate-700 text-xs font-bold">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>এই চ্যাটটি সমাপ্ত (Closed) করা হয়েছে</span>
+          </div>
+          <p className="text-[11px] text-slate-500 max-w-xs mx-auto leading-relaxed">
+            এই কনভারসেশনটির সমাধান সম্পন্ন হয়েছে এবং মেসেজ আদান-প্রদান বন্ধ আছে। আপনার নতুন কোনো প্রশ্ন বা সহায়তার প্রয়োজন হলে নিচে ক্লিক করে নতুন চ্যাট শুরু করতে পারেন।
+          </p>
+          {onNewChat && (
+            <button
+              type="button"
+              onClick={onNewChat}
+              style={{ backgroundColor: widgetConfig.primaryColor }}
+              className="w-full py-2.5 px-4 text-white text-xs font-bold rounded-xl shadow-md hover:opacity-95 active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <MessageSquarePlus className="w-4 h-4" />
+              <span>➕ নতুন চ্যাট শুরু করুন (Start New Chat)</span>
+            </button>
+          )}
         </div>
       ) : (
         <form onSubmit={handleSend} className="p-2.5 bg-white border-t border-slate-200 shrink-0 relative">
