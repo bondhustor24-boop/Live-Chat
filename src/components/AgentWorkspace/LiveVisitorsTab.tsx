@@ -104,64 +104,78 @@ export const LiveVisitorsTab: React.FC<LiveVisitorsTabProps> = ({ visitors, onIn
               </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {visitors.map((v) => (
-                <div
-                  key={v.id}
-                  className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md transition space-y-3"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm">{v.name}</h4>
-                      {v.email && <p className="text-xs text-slate-500">{v.email}</p>}
-                      <div className="flex items-center gap-1.5 flex-wrap font-mono text-[10px] mt-1">
-                        <span className="bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-md font-bold">
-                          📱 {v.phone || '01712345678'}
-                        </span>
-                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded-md font-bold">
-                          🌐 IP: {v.ip || '103.205.132.42'}
-                        </span>
+            {visitors.length === 0 ? (
+              <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-xs space-y-3">
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+                  <UserCheck className="w-6 h-6 animate-pulse" />
+                </div>
+                <h4 className="font-bold text-slate-800 text-sm">বর্তমানে কোনো সক্রিয় ভিজিটর নেই</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  নতুন কোনো ভিজিটর ওয়েবসাইটে বা লাইভ চ্যাট উইজেটে প্রবেশ করলে রিয়েলটাইমে সাথে সাথে এখানে লাইভ ডেটা যুক্ত হবে।
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {visitors.map((v) => (
+                  <div
+                    key={v.id}
+                    className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md transition space-y-3"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">{v.name || 'অনলাইন ভিজিটর'}</h4>
+                        {v.email && <p className="text-xs text-slate-500">{v.email}</p>}
+                        <div className="flex items-center gap-1.5 flex-wrap font-mono text-[10px] mt-1">
+                          {v.phone && (
+                            <span className="bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-md font-bold">
+                              📱 {v.phone}
+                            </span>
+                          )}
+                          <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded-md font-bold">
+                            🌐 IP: {v.ip || '103.205.132.42'}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-full border border-blue-200 uppercase">
+                        {v.status === 'in_chat' ? 'চ্যাটে যুক্ত' : v.status === 'invited' ? 'ইনভাইটেড' : 'ব্রাউজিং'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{v.location || 'ঢাকা, বাংলাদেশ'}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="font-mono text-blue-600 truncate">{v.currentPage || '/'}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>ব্রাউজিং সময়: {v.timeOnPage}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Laptop className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{v.device || 'Web Browser'}</span>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-full border border-blue-200 uppercase">
-                      {v.status}
-                    </span>
-                  </div>
 
-                  <div className="space-y-1.5 text-xs text-slate-600">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">{v.location}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="font-mono text-blue-600 truncate">{v.currentPage}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>Time on page: {v.timeOnPage}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Laptop className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">{v.device}</span>
+                    <div className="pt-2 border-t border-slate-100 flex justify-end">
+                      <button
+                        onClick={() => onInviteToChat(v)}
+                        className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      >
+                        <MessageSquarePlus className="w-4 h-4" />
+                        <span>সরাসরি চ্যাট ইনভাইট পাঠান</span>
+                      </button>
                     </div>
                   </div>
-
-                  <div className="pt-2 border-t border-slate-100 flex justify-end">
-                    <button
-                      onClick={() => onInviteToChat(v)}
-                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
-                    >
-                      <MessageSquarePlus className="w-4 h-4" />
-                      <span>সরাসরি চ্যাট ইনভাইট পাঠান</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

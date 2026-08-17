@@ -61,6 +61,7 @@ const SETTINGS_COL = 'settings';
 const TYPING_COL = 'typing_status';
 const BLOCKED_COL = 'blocked_users';
 const ADMIN_USERS_COL = 'admin_users';
+const VISITORS_COL = 'visitors';
 
 export interface AdminAccount {
   id: string;
@@ -404,6 +405,33 @@ export async function syncWidgetConfigToFirestore(config: any) {
   }
 }
 
+// Save or Update Live Visitor in Firestore
+export async function syncVisitorToFirestore(visitor: any) {
+  if (!visitor || !visitor.id) return;
+  try {
+    const visitorRef = doc(db, VISITORS_COL, visitor.id);
+    const cleanVisitor = {
+      ...visitor,
+      lastActive: Date.now(),
+      visitedAt: visitor.visitedAt || new Date().toISOString(),
+    };
+    await setDoc(visitorRef, JSON.parse(JSON.stringify(cleanVisitor)), { merge: true });
+  } catch (err) {
+    console.warn(`Firestore sync error for visitor ${visitor.id}:`, err);
+  }
+}
+
+// Delete Live Visitor from Firestore
+export async function deleteVisitorFromFirestore(visitorId: string) {
+  if (!visitorId) return;
+  try {
+    const visitorRef = doc(db, VISITORS_COL, visitorId);
+    await deleteDoc(visitorRef);
+  } catch (err) {
+    console.warn(`Firestore delete error for visitor ${visitorId}:`, err);
+  }
+}
+
 // Fetch all initial data from Firestore
 export async function loadFirestoreData() {
   try {
@@ -411,6 +439,7 @@ export async function loadFirestoreData() {
     const messagesSnap = await getDocs(collection(db, MESSAGES_COL));
     const settingsSnap = await getDocs(collection(db, SETTINGS_COL));
     const blockedSnap = await getDocs(collection(db, BLOCKED_COL));
+    const visitorsSnap = await getDocs(collection(db, VISITORS_COL));
 
     const loadedChats: any[] = [];
     chatsSnap.forEach((docSnap) => {
@@ -447,11 +476,22 @@ export async function loadFirestoreData() {
       loadedBlocked.push(docSnap.data());
     });
 
+    const loadedVisitors: any[] = [];
+    const now = Date.now();
+    visitorsSnap.forEach((docSnap) => {
+      const v: any = docSnap.data();
+      // Keep only active visitors within last 10 minutes
+      if (v && (!v.lastActive || now - v.lastActive < 10 * 60 * 1000)) {
+        loadedVisitors.push(v);
+      }
+    });
+
     return {
       chats: loadedChats,
       messages: loadedMessages,
       widgetConfig: loadedConfig,
       blockedUsers: loadedBlocked,
+      visitors: loadedVisitors,
     };
   } catch (err) {
     console.error('Error loading data from Firestore:', err);
@@ -464,12 +504,14 @@ export function setupFirestoreRealtimeListeners(
   onChatsUpdate: (chats: any[]) => void,
   onMessagesUpdate: (messagesMap: Record<string, any[]>) => void,
   onTypingUpdate?: (chatId: string, senderRole: 'customer' | 'agent', isTyping: boolean, senderName?: string) => void,
-  onBlockedUsersUpdate?: (blockedUsers: any[]) => void
+  onBlockedUsersUpdate?: (blockedUsers: any[]) => void,
+  onVisitorsUpdate?: (visitors: any[]) => void
 ) {
   let unsubscribeChats: (() => void) | null = null;
   let unsubscribeMessages: (() => void) | null = null;
   let unsubscribeTyping: (() => void) | null = null;
   let unsubscribeBlocked: (() => void) | null = null;
+  let unsubscribeVisitors: (() => void) | null = null;
 
   const listenChats = () => {
     try {
@@ -594,8 +636,43 @@ export function setupFirestoreRealtimeListeners(
     }
   };
 
+  const listenVisitors = () => {
+    if (!onVisitorsUpdate) return;
+    try {
+      if (unsubscribeVisitors) {
+        try { unsubscribeVisitors(); } catch (e) {}
+      }
+      unsubscribeVisitors = onSnapshot(
+        collection(db, VISITORS_COL),
+        (snapshot) => {
+          const visitorsList: any[] = [];
+          const now = Date.now();
+          snapshot.forEach((d) => {
+            const v: any = d.data();
+            // Show only visitors active within the last 10 minutes
+            if (v && (!v.lastActive || now - v.lastActive < 10 * 60 * 1000)) {
+              visitorsList.push(v);
+            }
+          });
+          // Sort by latest active
+          visitorsList.sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0));
+          onVisitorsUpdate(visitorsList);
+        },
+        (error) => {
+          console.log('Firestore visitors listener idle/reconnect event:', error.message || error);
+          setTimeout(() => {
+            listenVisitors();
+          }, 2000);
+        }
+      );
+    } catch (e) {
+      console.warn('Error initiating visitors listener:', e);
+    }
+  };
+
   listenChats();
   listenMessages();
   listenTyping();
   listenBlocked();
+  listenVisitors();
 }

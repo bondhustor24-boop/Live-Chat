@@ -47,6 +47,28 @@
         "quickReplies": { "type": "array", "description": "List of predefined quick reply templates" }
       },
       "required": ["id"]
+    },
+    "visitors": {
+      "title": "Live Visitors",
+      "description": "Real-time active visitors tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Visitor identifier" },
+        "name": { "type": "string", "description": "Visitor name or display identifier" },
+        "email": { "type": "string", "description": "Visitor email if provided" },
+        "phone": { "type": "string", "description": "Visitor phone if provided" },
+        "location": { "type": "string", "description": "Visitor location" },
+        "currentPage": { "type": "string", "description": "Current active page path" },
+        "timeOnPage": { "type": "string", "description": "Elapsed duration on page" },
+        "device": { "type": "string", "description": "Device and browser information" },
+        "deviceType": { "type": "string", "description": "phone, desktop, or tablet" },
+        "ip": { "type": "string", "description": "Client IP address" },
+        "referrer": { "type": "string", "description": "Traffic source or referrer URL" },
+        "status": { "type": "string", "description": "browsing, in_chat, or invited" },
+        "visitedAt": { "type": "string", "description": "Initial visit timestamp" },
+        "lastActive": { "type": "number", "description": "Epoch timestamp of last activity heartbeat" }
+      },
+      "required": ["id", "location", "device", "status"]
     }
   }
 }

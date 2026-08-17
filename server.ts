@@ -18,6 +18,8 @@ import {
   deleteChatFromFirestore,
   syncMessageToFirestore,
   syncWidgetConfigToFirestore,
+  syncVisitorToFirestore,
+  deleteVisitorFromFirestore,
   loadFirestoreData,
   setupFirestoreRealtimeListeners
 } from './src/lib/firestoreSync.js';
@@ -1307,7 +1309,63 @@ app.delete('/api/canned-responses/:id', (req, res) => {
 });
 
 // GET Live Visitors
-app.get('/api/visitors', (req, res) => res.json(liveVisitors));
+app.get('/api/visitors', (req, res) => {
+  const now = Date.now();
+  // Filter out any stale visitors older than 10 minutes
+  liveVisitors = liveVisitors.filter((v: any) => !v.lastActive || now - v.lastActive < 10 * 60 * 1000);
+  res.json(liveVisitors);
+});
+
+// POST Live Visitor Heartbeat Ping
+app.post('/api/visitors/ping', (req, res) => {
+  const visitorData = req.body;
+  if (!visitorData || !visitorData.id) {
+    return res.status(400).json({ error: 'Visitor ID required' });
+  }
+
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || visitorData.ip || '103.205.132.42';
+
+  const updatedVisitor: LiveVisitor & { lastActive?: number } = {
+    ...visitorData,
+    ip: clientIp.includes('::') || clientIp === '127.0.0.1' ? (visitorData.ip || '103.205.132.42') : clientIp,
+    lastActive: Date.now(),
+  };
+
+  const existingIdx = liveVisitors.findIndex((v) => v.id === updatedVisitor.id);
+  if (existingIdx >= 0) {
+    liveVisitors[existingIdx] = { ...liveVisitors[existingIdx], ...updatedVisitor };
+  } else {
+    liveVisitors.unshift(updatedVisitor);
+  }
+
+  // Prune stale visitors
+  const now = Date.now();
+  liveVisitors = liveVisitors.filter((v: any) => !v.lastActive || now - v.lastActive < 10 * 60 * 1000);
+
+  // Sync to Firestore
+  syncVisitorToFirestore(updatedVisitor);
+
+  broadcast({
+    type: 'visitors_updated',
+    visitors: liveVisitors,
+  });
+
+  res.json({ success: true, visitor: updatedVisitor });
+});
+
+// POST Live Visitor Leave
+app.post('/api/visitors/leave', (req, res) => {
+  const { id } = req.body || {};
+  if (id) {
+    liveVisitors = liveVisitors.filter((v) => v.id !== id);
+    deleteVisitorFromFirestore(id);
+    broadcast({
+      type: 'visitors_updated',
+      visitors: liveVisitors,
+    });
+  }
+  res.json({ success: true });
+});
 
 // GET & POST Widget Settings
 app.get('/api/settings', (req, res) => res.json(widgetConfig));
@@ -1711,7 +1769,7 @@ async function startServer() {
     // Start Realtime Firestore Listeners
     setupFirestoreRealtimeListeners(
       (updatedChats) => {
-        if (updatedChats && updatedChats.length > 0) {
+        if (updatedChats) {
           chats = updatedChats;
           broadcast({ type: 'full_reset' });
         }
@@ -1720,6 +1778,19 @@ async function startServer() {
         if (updatedMessages) {
           messages = updatedMessages;
           broadcast({ type: 'full_reset' });
+        }
+      },
+      undefined,
+      (updatedBlocked) => {
+        if (updatedBlocked) {
+          blockedUsers = updatedBlocked;
+          broadcast({ type: 'full_reset' });
+        }
+      },
+      (updatedVisitors) => {
+        if (updatedVisitors) {
+          liveVisitors = updatedVisitors;
+          broadcast({ type: 'visitors_updated', visitors: liveVisitors });
         }
       }
     );

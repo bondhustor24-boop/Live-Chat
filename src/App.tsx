@@ -45,6 +45,7 @@ import {
 } from './lib/firestoreSync';
 import { sendTelegramNotification } from './lib/telegramNotify';
 import { getOrCreatePersistentCustomerId, saveCustomerProfile } from './lib/visitorIdentity';
+import { startVisitorTracker } from './lib/visitorTracker';
 
 export default function App() {
   const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes inactivity timeout
@@ -355,6 +356,31 @@ export default function App() {
     });
   };
 
+  const visitorTrackerRef = useRef<{
+    updateVisitorInfo: (updates: {
+      name?: string;
+      phone?: string;
+      email?: string;
+      status?: 'browsing' | 'in_chat' | 'invited';
+    }) => void;
+    stop: () => void;
+  } | null>(null);
+
+  // Real-time visitor tracking for storefront & customer widget
+  useEffect(() => {
+    if (!isAdminLoggedIn) {
+      const tracker = startVisitorTracker({
+        visitorName: 'অনলাইন ভিজিটর',
+        status: customerChatId ? 'in_chat' : 'browsing',
+      });
+      visitorTrackerRef.current = tracker;
+
+      return () => {
+        tracker.stop();
+      };
+    }
+  }, [isAdminLoggedIn]);
+
   // Connect WebSocket, Firestore Realtime Listener & Fetch Initial REST Data
   useEffect(() => {
     // Setup Realtime Firestore Listener (for Vercel & cross-device sync)
@@ -395,6 +421,11 @@ export default function App() {
         if (firestoreBlocked) {
           setBlockedUsers(firestoreBlocked);
         }
+      },
+      (firestoreVisitors) => {
+        if (firestoreVisitors) {
+          setLiveVisitors(firestoreVisitors);
+        }
       }
     );
 
@@ -412,6 +443,9 @@ export default function App() {
         }
         if (data.blockedUsers && data.blockedUsers.length > 0) {
           setBlockedUsers(data.blockedUsers);
+        }
+        if (data.visitors && data.visitors.length > 0) {
+          setLiveVisitors(data.visitors);
         }
       }
     });
@@ -838,6 +872,13 @@ export default function App() {
               break;
             }
 
+            case 'visitors_updated': {
+              if (parsed.visitors && Array.isArray(parsed.visitors)) {
+                setLiveVisitors(parsed.visitors);
+              }
+              break;
+            }
+
             case 'delete_message':
             case 'message_deleted': {
               const { chatId, messageId } = parsed;
@@ -879,6 +920,15 @@ export default function App() {
     const persistentCustomerId = getOrCreatePersistentCustomerId();
     const cleanPhone = (data.customerPhone || '').replace(/[^0-9]/g, '');
     saveCustomerProfile(data.customerName, cleanPhone, data.customerEmail);
+
+    if (visitorTrackerRef.current) {
+      visitorTrackerRef.current.updateVisitorInfo({
+        name: data.customerName,
+        phone: data.customerPhone,
+        email: data.customerEmail,
+        status: 'in_chat',
+      });
+    }
 
     // Search for existing chat session of this same customer (by customerChatId, customerId, or phone)
     const existingChat = chats.find((c) => {
