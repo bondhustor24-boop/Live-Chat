@@ -62,6 +62,8 @@ const TYPING_COL = 'typing_status';
 const BLOCKED_COL = 'blocked_users';
 const ADMIN_USERS_COL = 'admin_users';
 const VISITORS_COL = 'visitors';
+const VISITOR_LOGS_COL = 'visitor_logs';
+const VISITOR_STATS_COL = 'visitor_stats';
 
 export interface AdminAccount {
   id: string;
@@ -429,6 +431,41 @@ export async function deleteVisitorFromFirestore(visitorId: string) {
     await deleteDoc(visitorRef);
   } catch (err) {
     console.warn(`Firestore delete error for visitor ${visitorId}:`, err);
+  }
+}
+
+// Sync Visitor Log Entry to Firestore
+export async function syncVisitorLogToFirestore(logEntry: any) {
+  if (!logEntry || !logEntry.id) return;
+  try {
+    const logRef = doc(db, VISITOR_LOGS_COL, logEntry.id);
+    await setDoc(logRef, JSON.parse(JSON.stringify(logEntry)), { merge: true });
+  } catch (err) {
+    console.warn(`Firestore sync error for visitor log ${logEntry.id}:`, err);
+  }
+}
+
+// Load Visitor Logs from Firestore
+export async function loadVisitorLogsFromFirestore(): Promise<any[]> {
+  try {
+    const snap = await getDocs(collection(db, VISITOR_LOGS_COL));
+    const list: any[] = [];
+    snap.forEach((d) => list.push(d.data()));
+    return list;
+  } catch (err) {
+    console.warn('Error loading visitor logs from Firestore:', err);
+    return [];
+  }
+}
+
+// Sync Aggregated Visitor Stats Summary to Firestore
+export async function syncVisitorStatsSummaryToFirestore(summary: any) {
+  if (!summary) return;
+  try {
+    const statsRef = doc(db, VISITOR_STATS_COL, 'global_summary');
+    await setDoc(statsRef, JSON.parse(JSON.stringify(summary)), { merge: true });
+  } catch (err) {
+    console.warn('Firestore sync error for visitor stats summary:', err);
   }
 }
 

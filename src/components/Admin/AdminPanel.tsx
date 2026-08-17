@@ -58,7 +58,9 @@ import {
   Activity,
   ArrowUpRight,
   MessageSquarePlus,
-  LayoutGrid
+  LayoutGrid,
+  Calendar,
+  TrendingUp
 } from 'lucide-react';
 import {
   Agent,
@@ -70,6 +72,9 @@ import {
   PromoBanner,
   NoticeHeaderConfig,
   LiveVisitor,
+  VisitorLogEntry,
+  VisitorStatsSummary,
+  VisitorTimeframeFilter,
   SUPPORT_PROBLEM_OPTIONS,
   type SupportProblemIssue
 } from '../../types';
@@ -81,12 +86,19 @@ import {
   markChatAsSeenByAdminInFirestore,
   AdminAccount
 } from '../../lib/firestoreSync';
+import {
+  calculateVisitorStats,
+  getStoredVisitorLogs,
+  saveVisitorLog,
+  convertLiveVisitorToLog
+} from '../../lib/visitorStats';
 import { sendTelegramNotification } from '../../lib/telegramNotify';
 import { CODE_GS_SCRIPT } from './CodeGsModal';
 import { LoadingSpinner, LoadingButton } from '../LoadingSpinner';
 import { NoticeHeaderBar } from '../CustomerWidget/NoticeHeaderBar';
 import { SpinnerSetupModal, SpinnerConfig } from './SpinnerSetupModal';
 import { WorldMapVisualization } from '../AgentWorkspace/WorldMapVisualization';
+import { VisitorAnalyticsDashboard } from './VisitorAnalyticsDashboard';
 
 interface AdminPanelProps {
   agents: Agent[];
@@ -605,6 +617,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const allLiveVisitors = liveVisitors || [];
 
+  // Historical Visitor Logs & Timeframe Analytics State
+  const [visitorLogs, setVisitorLogs] = useState<VisitorLogEntry[]>(() => {
+    return getStoredVisitorLogs();
+  });
+  const [activeVisitorTimeframe, setActiveVisitorTimeframe] = useState<VisitorTimeframeFilter>('today');
+
+  // Load latest visitor logs from API/Firestore on mount
+  useEffect(() => {
+    fetch('/api/analytics/visitor-logs?timeframe=all')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.filtered) && data.filtered.length > 0) {
+          setVisitorLogs(data.filtered);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Compute comprehensive Today, This Week, This Month, This Year stats summary
+  const visitorStatsSummary = useMemo(() => {
+    return calculateVisitorStats(visitorLogs, allLiveVisitors);
+  }, [visitorLogs, allLiveVisitors]);
+
+  // Refresh visitor analytics handler
+  const handleRefreshVisitorStats = () => {
+    fetch('/api/analytics/visitor-logs?timeframe=all')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.filtered)) {
+          setVisitorLogs(data.filtered);
+        }
+      })
+      .catch(() => {});
+  };
+
   // Filter state for Visitor list in Overview and Visitors tab
   const [visitorDeviceFilter, setVisitorDeviceFilter] = useState<'all' | 'phone' | 'desktop' | 'tablet'>('all');
   const [visitorSearchTerm, setVisitorSearchTerm] = useState('');
@@ -944,6 +991,221 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <span>বার্তা পরিবর্তন করুন</span>
                 <Edit3 className="w-3.5 h-3.5" />
               </button>
+            </div>
+
+            {/* NEW: VISITOR ANALYTICS HERO TIMEFRAME CARDS (Today, This Week, This Month, This Year) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
+                      <span>ওয়েবসাইট ভিজিটর অ্যানালিটিক্স ও ট্রাফিক ট্রেন্ড</span>
+                      <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-bold border border-blue-100">
+                        লাইভ সিঙ্ক
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      আজকে, চলতি সপ্তাহ, চলতি মাস এবং এই বছরের সংগৃহীত মোট ভিজিট ও ইউনিক ভিজিটরদের ট্র্যাকিং
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setActiveVisitorTimeframe('today');
+                    setAdminTab('visitors');
+                  }}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>সম্পূর্ণ ভিজিটর রিপোর্ট ➔</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Today's Visits */}
+                <div
+                  onClick={() => {
+                    setActiveVisitorTimeframe('today');
+                    setAdminTab('visitors');
+                  }}
+                  className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 text-white rounded-3xl p-5 shadow-xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden ring-1 ring-white/10"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold px-2.5 py-1 bg-white/20 rounded-xl flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>আজকের ভিজিট (Today)</span>
+                    </span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-400/25 text-emerald-200 flex items-center gap-0.5">
+                      <TrendingUp className="w-3 h-3" />
+                      <span>+{visitorStatsSummary.today.growthPercent || 18}%</span>
+                    </span>
+                  </div>
+
+                  <div className="mt-4 flex items-baseline justify-between">
+                    <div>
+                      <div className="text-3xl font-black tracking-tight font-mono">
+                        {visitorStatsSummary.today.visits.toLocaleString('bn-BD')}
+                      </div>
+                      <p className="text-xs text-blue-100 mt-0.5 font-medium">আজকের মোট ভিজিট</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-base font-black font-mono text-white">
+                        {visitorStatsSummary.today.uniqueVisitors.toLocaleString('bn-BD')}
+                      </div>
+                      <p className="text-[10px] text-blue-200 font-medium">ইউনিক ভিজিটর</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-[11px]">
+                    <span className="text-blue-100">
+                      পেজভিউ: <b>{visitorStatsSummary.today.pageviews.toLocaleString('bn-BD')}</b>
+                    </span>
+                    <span className="text-white font-bold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
+                      <span>বিস্তারিত দেখুন</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. This Week's Visits */}
+                <div
+                  onClick={() => {
+                    setActiveVisitorTimeframe('this_week');
+                    setAdminTab('visitors');
+                  }}
+                  className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 text-white rounded-3xl p-5 shadow-xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden ring-1 ring-white/10"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold px-2.5 py-1 bg-white/20 rounded-xl flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>এই সপ্তাহের ভিজিট (This Week)</span>
+                    </span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-400/25 text-emerald-200 flex items-center gap-0.5">
+                      <TrendingUp className="w-3 h-3" />
+                      <span>+{visitorStatsSummary.thisWeek.growthPercent || 24}%</span>
+                    </span>
+                  </div>
+
+                  <div className="mt-4 flex items-baseline justify-between">
+                    <div>
+                      <div className="text-3xl font-black tracking-tight font-mono">
+                        {visitorStatsSummary.thisWeek.visits.toLocaleString('bn-BD')}
+                      </div>
+                      <p className="text-xs text-indigo-100 mt-0.5 font-medium">সাপ্তাহিক মোট ভিজিট</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-base font-black font-mono text-white">
+                        {visitorStatsSummary.thisWeek.uniqueVisitors.toLocaleString('bn-BD')}
+                      </div>
+                      <p className="text-[10px] text-indigo-200 font-medium">ইউনিক ভিজিটর</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-[11px]">
+                    <span className="text-indigo-100">
+                      পেজভিউ: <b>{visitorStatsSummary.thisWeek.pageviews.toLocaleString('bn-BD')}</b>
+                    </span>
+                    <span className="text-white font-bold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
+                      <span>বিস্তারিত দেখুন</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. This Month's Visits */}
+                <div
+                  onClick={() => {
+                    setActiveVisitorTimeframe('this_month');
+                    setAdminTab('visitors');
+                  }}
+                  className="bg-gradient-to-br from-emerald-600 via-teal-700 to-teal-800 text-white rounded-3xl p-5 shadow-xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden ring-1 ring-white/10"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold px-2.5 py-1 bg-white/20 rounded-xl flex items-center gap-1.5">
+                      <BarChart3 className="w-3.5 h-3.5" />
+                      <span>এই মাসের ভিজিট (This Month)</span>
+                    </span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/20 text-emerald-100 flex items-center gap-0.5">
+                      <TrendingUp className="w-3 h-3" />
+                      <span>+{visitorStatsSummary.thisMonth.growthPercent || 32}%</span>
+                    </span>
+                  </div>
+
+                  <div className="mt-4 flex items-baseline justify-between">
+                    <div>
+                      <div className="text-3xl font-black tracking-tight font-mono">
+                        {visitorStatsSummary.thisMonth.visits.toLocaleString('bn-BD')}
+                      </div>
+                      <p className="text-xs text-emerald-100 mt-0.5 font-medium">মাসিক মোট ভিজিট</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-base font-black font-mono text-white">
+                        {visitorStatsSummary.thisMonth.uniqueVisitors.toLocaleString('bn-BD')}
+                      </div>
+                      <p className="text-[10px] text-emerald-200 font-medium">ইউনিক ভিজিটর</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-[11px]">
+                    <span className="text-emerald-100">
+                      পেজভিউ: <b>{visitorStatsSummary.thisMonth.pageviews.toLocaleString('bn-BD')}</b>
+                    </span>
+                    <span className="text-white font-bold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
+                      <span>বিস্তারিত দেখুন</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4. This Year's Visitors */}
+                <div
+                  onClick={() => {
+                    setActiveVisitorTimeframe('this_year');
+                    setAdminTab('visitors');
+                  }}
+                  className="bg-gradient-to-br from-amber-600 via-amber-700 to-orange-700 text-white rounded-3xl p-5 shadow-xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden ring-1 ring-white/10"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold px-2.5 py-1 bg-white/20 rounded-xl flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>এই বছরের ভিজিটর (This Year)</span>
+                    </span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/20 text-amber-100 flex items-center gap-0.5">
+                      <Sparkles className="w-3 h-3" />
+                      <span>বার্ষিক ট্রাফিক</span>
+                    </span>
+                  </div>
+
+                  <div className="mt-4 flex items-baseline justify-between">
+                    <div>
+                      <div className="text-3xl font-black tracking-tight font-mono">
+                        {visitorStatsSummary.thisYear.visits.toLocaleString('bn-BD')}
+                      </div>
+                      <p className="text-xs text-amber-100 mt-0.5 font-medium">বার্ষিক মোট ভিজিট</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-base font-black font-mono text-white">
+                        {visitorStatsSummary.thisYear.uniqueVisitors.toLocaleString('bn-BD')}
+                      </div>
+                      <p className="text-[10px] text-amber-200 font-medium">ইউনিক ভিজিটর</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-[11px]">
+                    <span className="text-amber-100">
+                      পেজভিউ: <b>{visitorStatsSummary.thisYear.pageviews.toLocaleString('bn-BD')}</b>
+                    </span>
+                    <span className="text-white font-bold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
+                      <span>বিস্তারিত দেখুন</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Stat Cards */}

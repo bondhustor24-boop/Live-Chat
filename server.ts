@@ -12,7 +12,7 @@ import {
   INITIAL_LIVE_VISITORS,
   INITIAL_WIDGET_CONFIG
 } from './src/data/mockData.js';
-import { ChatSession, ChatMessage, Agent, CannedResponse, LiveVisitor, WidgetConfig, BlockedUser, AdminUser } from './src/types.js';
+import { ChatSession, ChatMessage, Agent, CannedResponse, LiveVisitor, WidgetConfig, BlockedUser, AdminUser, VisitorLogEntry } from './src/types.js';
 import {
   syncChatToFirestore,
   deleteChatFromFirestore,
@@ -20,9 +20,16 @@ import {
   syncWidgetConfigToFirestore,
   syncVisitorToFirestore,
   deleteVisitorFromFirestore,
+  syncVisitorLogToFirestore,
   loadFirestoreData,
   setupFirestoreRealtimeListeners
 } from './src/lib/firestoreSync.js';
+import {
+  calculateVisitorStats,
+  generateInitialVisitorLogs,
+  convertLiveVisitorToLog,
+  filterVisitorLogs
+} from './src/lib/visitorStats.js';
 
 dotenv.config();
 
@@ -49,6 +56,7 @@ let messages: Record<string, ChatMessage[]> = { ...INITIAL_MESSAGES };
 let agents: Agent[] = [...INITIAL_AGENTS];
 let cannedResponses: CannedResponse[] = [...INITIAL_CANNED_RESPONSES];
 let liveVisitors: LiveVisitor[] = [...INITIAL_LIVE_VISITORS];
+let visitorLogs: VisitorLogEntry[] = generateInitialVisitorLogs();
 let widgetConfig: WidgetConfig = { ...INITIAL_WIDGET_CONFIG };
 let blockedUsers: BlockedUser[] = [];
 let adminUsers: AdminUser[] = [
@@ -1320,6 +1328,47 @@ app.get('/api/visitors', (req, res) => {
   res.json(liveVisitors);
 });
 
+// GET Visitor Analytics Stats (Today, This Week, This Month, This Year)
+app.get('/api/analytics/visitor-stats', (req, res) => {
+  try {
+    const stats = calculateVisitorStats(visitorLogs, liveVisitors);
+    res.json(stats);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET Visitor Logs by Timeframe (live, today, this_week, this_month, this_year, all)
+app.get('/api/analytics/visitor-logs', (req, res) => {
+  try {
+    const timeframe = (req.query.timeframe as any) || 'all';
+    const result = filterVisitorLogs(visitorLogs, timeframe, liveVisitors);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST Record or Update Custom Visit Log
+app.post('/api/analytics/record-visit', (req, res) => {
+  try {
+    const entry: VisitorLogEntry = req.body;
+    if (!entry || !entry.id) {
+      return res.status(400).json({ error: 'Valid visitor log entry required' });
+    }
+    const existingIdx = visitorLogs.findIndex((l) => l.id === entry.id || (l.visitorId === entry.visitorId && l.date === entry.date));
+    if (existingIdx >= 0) {
+      visitorLogs[existingIdx] = { ...visitorLogs[existingIdx], ...entry };
+    } else {
+      visitorLogs.unshift(entry);
+    }
+    syncVisitorLogToFirestore(entry);
+    res.json({ success: true, entry });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST Live Visitor Heartbeat Ping
 app.post('/api/visitors/ping', (req, res) => {
   const visitorData = req.body;
@@ -1346,8 +1395,24 @@ app.post('/api/visitors/ping', (req, res) => {
   const now = Date.now();
   liveVisitors = liveVisitors.filter((v: any) => !v.lastActive || now - v.lastActive < 10 * 60 * 1000);
 
+  // Convert and record in historical visitor logs
+  const logEntry = convertLiveVisitorToLog(updatedVisitor);
+  const logIdx = visitorLogs.findIndex((l) => l.id === logEntry.id || (l.visitorId === logEntry.visitorId && l.date === logEntry.date));
+  if (logIdx >= 0) {
+    visitorLogs[logIdx] = {
+      ...visitorLogs[logIdx],
+      ...logEntry,
+      pageviewsCount: Math.max(visitorLogs[logIdx].pageviewsCount, logEntry.pageviewsCount),
+      pathHistory: logEntry.pathHistory && logEntry.pathHistory.length > 0 ? logEntry.pathHistory : visitorLogs[logIdx].pathHistory,
+      chatInitiated: logEntry.chatInitiated || visitorLogs[logIdx].chatInitiated,
+    };
+  } else {
+    visitorLogs.unshift(logEntry);
+  }
+
   // Sync to Firestore
   syncVisitorToFirestore(updatedVisitor);
+  syncVisitorLogToFirestore(logEntry);
 
   broadcast({
     type: 'visitors_updated',

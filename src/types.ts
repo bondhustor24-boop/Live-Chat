@@ -143,6 +143,67 @@ export interface VisitorPageVisit {
   isChatEntry?: boolean;
 }
 
+export interface VisitorLogEntry {
+  id: string;
+  visitorId: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  ip: string;
+  location: string;
+  device: string;
+  deviceType: 'phone' | 'desktop' | 'tablet';
+  referrer: string;
+  landingPage: string;
+  currentPage: string;
+  visitedAt: string; // ISO String
+  date: string; // YYYY-MM-DD
+  week: string; // YYYY-Wxx
+  month: string; // YYYY-MM
+  year: string; // YYYY
+  timeSpent?: string;
+  pageviewsCount: number;
+  pathHistory?: VisitorPageVisit[];
+  chatInitiated?: boolean;
+  chatInitiatedPage?: string;
+}
+
+export interface VisitorTimeframeStat {
+  visits: number;
+  uniqueVisitors: number;
+  pageviews: number;
+  chatInitiatedCount: number;
+  growthPercent?: number;
+}
+
+export interface VisitorTrendPoint {
+  key: string;
+  label: string;
+  visits: number;
+  uniqueVisitors: number;
+  pageviews?: number;
+}
+
+export interface VisitorStatsSummary {
+  today: VisitorTimeframeStat;
+  thisWeek: VisitorTimeframeStat;
+  thisMonth: VisitorTimeframeStat;
+  thisYear: VisitorTimeframeStat;
+  allTime: VisitorTimeframeStat;
+  hourlyTrendToday: VisitorTrendPoint[];
+  dailyTrendThisWeek: VisitorTrendPoint[];
+  weeklyTrendThisMonth: VisitorTrendPoint[];
+  monthlyTrendThisYear: VisitorTrendPoint[];
+  topPages: { path: string; title: string; views: number; uniqueVisitors: number }[];
+  deviceBreakdown: { phone: number; desktop: number; tablet: number };
+  topLocations: { location: string; count: number; percent: number }[];
+  topSources: { name: string; icon: string; count: number; percent: number }[];
+  lastUpdated: string;
+}
+
+export type VisitorTimeframeFilter = 'live' | 'today' | 'this_week' | 'this_month' | 'this_year' | 'all';
+
+
 export interface LiveVisitor {
   id: string;
   name: string;
