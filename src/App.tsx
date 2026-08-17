@@ -415,10 +415,28 @@ export default function App() {
       },
       (firestoreMessagesMap) => {
         if (firestoreMessagesMap && Object.keys(firestoreMessagesMap).length > 0) {
-          setMessages((prev) => ({
-            ...prev,
-            ...firestoreMessagesMap,
-          }));
+          setMessages((prev) => {
+            const merged: Record<string, ChatMessage[]> = { ...prev };
+            for (const [cId, msgs] of Object.entries(firestoreMessagesMap)) {
+              const existing = merged[cId] || [];
+              const seenIds = new Set<string>();
+              const seenContent = new Set<string>();
+              const uniqueList: ChatMessage[] = [];
+
+              for (const m of [...existing, ...(Array.isArray(msgs) ? msgs : [])]) {
+                if (!m) continue;
+                const idKey = m.id ? String(m.id).trim() : null;
+                const contentKey = `${m.senderRole || ''}_${(m.content || '').trim()}_${(m.timestamp || '').trim()}`;
+                if (idKey && seenIds.has(idKey)) continue;
+                if (seenContent.has(contentKey)) continue;
+                if (idKey) seenIds.add(idKey);
+                seenContent.add(contentKey);
+                uniqueList.push(m);
+              }
+              merged[cId] = uniqueList;
+            }
+            return merged;
+          });
         }
       },
       (chatId, senderRole, isTyping, senderName) => {

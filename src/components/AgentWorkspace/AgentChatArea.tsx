@@ -323,7 +323,29 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
 
       {/* Message Thread Scroll */}
       <div className="flex-1 p-4 overflow-y-auto space-y-3.5 text-xs">
-        {messages.map((msg, idx) => {
+        {(() => {
+          const seenIds = new Set<string>();
+          const seenContent = new Set<string>();
+          const displayMessages: ChatMessage[] = [];
+
+          for (const m of messages) {
+            if (!m) continue;
+            const idKey = m.id ? String(m.id).trim() : null;
+            const contentKey = `${m.senderRole || ''}_${(m.content || '').trim()}_${(m.timestamp || '').trim()}`;
+
+            if (idKey && seenIds.has(idKey)) {
+              continue;
+            }
+            if (seenContent.has(contentKey)) {
+              continue;
+            }
+
+            if (idKey) seenIds.add(idKey);
+            seenContent.add(contentKey);
+            displayMessages.push(m);
+          }
+
+          return displayMessages.map((msg, idx) => {
           const isCustomer = msg.senderRole === 'customer';
           const isNote = msg.isInternalNote;
           const isSystem = msg.senderRole === 'system';
@@ -449,7 +471,8 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
               </div>
             </div>
           );
-        })}
+        });
+      })()}
 
         {isCustomerTyping && (
           <div className="flex items-center gap-3 my-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">

@@ -422,7 +422,16 @@ wss.on('connection', (ws: ClientSocket) => {
           if (!messages[chatId]) {
             messages[chatId] = [];
           }
-          messages[chatId].push(newMessage);
+          const isDuplicateMsg = messages[chatId].some(
+            (m) =>
+              m.id === newMessage.id ||
+              (m.senderRole === newMessage.senderRole &&
+                (m.content || '').trim() === (newMessage.content || '').trim() &&
+                m.timestamp === newMessage.timestamp)
+          );
+          if (!isDuplicateMsg) {
+            messages[chatId].push(newMessage);
+          }
 
           // Update chat meta
           if (targetChat) {

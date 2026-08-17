@@ -379,9 +379,30 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <p className="text-[10px] text-slate-500">ডিপার্টমেন্ট: {chat.department}</p>
         </div>
 
-        {messages
-          .filter((m) => !m.isInternalNote) // Customer does not see agent internal whisper notes
-          .map((msg, idx) => {
+        {/* Messages List with Duplicate Elimination */}
+        {(() => {
+          const seenIds = new Set<string>();
+          const seenContent = new Set<string>();
+          const displayMessages: ChatMessage[] = [];
+
+          for (const m of messages) {
+            if (!m || m.isInternalNote) continue;
+            const idKey = m.id ? String(m.id).trim() : null;
+            const contentKey = `${m.senderRole || ''}_${(m.content || '').trim()}_${(m.timestamp || '').trim()}`;
+
+            if (idKey && seenIds.has(idKey)) {
+              continue; // Duplicate id - eliminate
+            }
+            if (seenContent.has(contentKey)) {
+              continue; // Duplicate content/timestamp - eliminate
+            }
+
+            if (idKey) seenIds.add(idKey);
+            seenContent.add(contentKey);
+            displayMessages.push(m);
+          }
+
+          return displayMessages.map((msg, idx) => {
             const isCustomer = msg.senderRole === 'customer';
             const isSystem = msg.senderRole === 'system';
 
@@ -408,42 +429,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
                 <div className={`max-w-[80%] space-y-1 ${isCustomer ? 'items-end' : 'items-start'}`}>
                   
-                  {/* Sender Label */}
+                  {/* Sender Label (Upper Seen badge removed to eliminate redundancy) */}
                   <div className={`flex items-center gap-1 text-[10px] text-slate-400 px-1 ${isCustomer ? 'justify-end' : 'justify-start'}`}>
                     <span>{msg.senderName}</span>
                     <span>•</span>
                     <span>{msg.timestamp}</span>
-                    {isCustomer && (
-                      <span
-                        className={`flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded-md text-[9px] font-medium transition ${
-                          msg.readStatus === 'read'
-                            ? 'bg-blue-50 text-blue-600 border border-blue-200'
-                            : 'text-slate-400'
-                        }`}
-                        title={
-                          msg.readStatus === 'read'
-                            ? `এডমিন দেখেছেন (${msg.seenBy || 'এডমিন'} • ${msg.seenAt ? new Date(msg.seenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Seen'})`
-                            : 'পাঠানো হয়েছে'
-                        }
-                      >
-                        {msg.readStatus === 'read' ? (
-                          <>
-                            <CheckCheck className="w-3.5 h-3.5 text-blue-600 font-bold" />
-                            <span>Seen</span>
-                          </>
-                        ) : msg.readStatus === 'delivered' ? (
-                          <>
-                            <CheckCheck className="w-3.5 h-3.5 text-slate-400" />
-                            <span>পৌঁছেছে</span>
-                          </>
-                        ) : (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-slate-400" />
-                            <span>পাঠানো হয়েছে</span>
-                          </>
-                        )}
-                      </span>
-                    )}
                   </div>
 
                   {/* Message Bubble */}
@@ -525,7 +515,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </div>
               </div>
             );
-          })}
+          });
+        })()}
 
         {/* Typing indicator */}
         {isTypingAgent && (
