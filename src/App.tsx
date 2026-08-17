@@ -47,13 +47,104 @@ import { sendTelegramNotification } from './lib/telegramNotify';
 import { getOrCreatePersistentCustomerId, saveCustomerProfile } from './lib/visitorIdentity';
 
 export default function App() {
+  const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes inactivity timeout
+
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
-    return typeof window !== 'undefined' && localStorage.getItem('novachat_admin_auth') === 'true';
+    if (typeof window === 'undefined') return false;
+    const auth = localStorage.getItem('novachat_admin_auth') === 'true';
+    if (!auth) return false;
+    
+    // Check if session has expired after 30 minutes of inactivity
+    const lastActiveStr = localStorage.getItem('novachat_admin_last_activity');
+    if (lastActiveStr) {
+      const lastActive = parseInt(lastActiveStr, 10);
+      if (!isNaN(lastActive) && Date.now() - lastActive > 30 * 60 * 1000) {
+        localStorage.removeItem('novachat_admin_auth');
+        localStorage.removeItem('novachat_admin_profile');
+        localStorage.removeItem('novachat_admin_user');
+        localStorage.removeItem('novachat_admin_last_activity');
+        return false;
+      }
+    }
+    return true;
   });
 
   const [activeTab, setActiveTab] = useState<'widget_preview' | 'agent_workspace' | 'visitors' | 'canned' | 'settings' | 'admin'>(() => {
-    return typeof window !== 'undefined' && localStorage.getItem('novachat_admin_auth') === 'true' ? 'admin' : 'widget_preview';
+    if (typeof window === 'undefined') return 'widget_preview';
+    const auth = localStorage.getItem('novachat_admin_auth') === 'true';
+    const lastActiveStr = localStorage.getItem('novachat_admin_last_activity');
+    if (auth && lastActiveStr) {
+      const lastActive = parseInt(lastActiveStr, 10);
+      if (!isNaN(lastActive) && Date.now() - lastActive > 30 * 60 * 1000) {
+        return 'widget_preview';
+      }
+    }
+    return auth ? 'admin' : 'widget_preview';
   });
+
+  // Track Admin Activity & Auto Logout after 30 Minutes of Inactivity
+  useEffect(() => {
+    if (!isAdminLoggedIn) return;
+
+    const recordActivity = () => {
+      try {
+        localStorage.setItem('novachat_admin_last_activity', Date.now().toString());
+      } catch (e) {}
+    };
+
+    // Ensure last activity is recorded upon login
+    if (!localStorage.getItem('novachat_admin_last_activity')) {
+      recordActivity();
+    }
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    
+    // Throttle activity updates to once every 5 seconds to reduce localStorage writes
+    let lastThrottledTime = 0;
+    const handleUserActivity = () => {
+      const now = Date.now();
+      if (now - lastThrottledTime > 5000) {
+        lastThrottledTime = now;
+        recordActivity();
+      }
+    };
+
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, handleUserActivity, { passive: true });
+    });
+
+    // Check inactivity every 10 seconds
+    const intervalId = setInterval(() => {
+      const lastActiveStr = localStorage.getItem('novachat_admin_last_activity');
+      if (lastActiveStr) {
+        const lastActive = parseInt(lastActiveStr, 10);
+        if (!isNaN(lastActive)) {
+          const elapsed = Date.now() - lastActive;
+          if (elapsed >= INACTIVITY_TIMEOUT_MS) {
+            // Auto logout triggered due to 30 minutes inactivity
+            setIsAdminLoggedIn(false);
+            localStorage.removeItem('novachat_admin_auth');
+            localStorage.removeItem('novachat_admin_profile');
+            localStorage.removeItem('novachat_admin_user');
+            localStorage.removeItem('novachat_admin_last_activity');
+            setActiveTab('widget_preview');
+            setToastNotification({
+              id: 'session_expired_' + Date.now(),
+              sender: 'সিস্টেম সিকিউরিটি',
+              text: '৩০ মিনিট কোনো কার্যক্রম না থাকায় এডমিন সেশন স্বয়ংক্রিয়ভাবে লগআউট হয়েছে।',
+            });
+          }
+        }
+      }
+    }, 10000);
+
+    return () => {
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, handleUserActivity);
+      });
+      clearInterval(intervalId);
+    };
+  }, [isAdminLoggedIn]);
 
   useEffect(() => {
     if (isAdminLoggedIn && activeTab === 'widget_preview') {
@@ -544,6 +635,7 @@ export default function App() {
         setIsAdminLoggedIn(true);
         localStorage.setItem('novachat_admin_auth', 'true');
         localStorage.setItem('novachat_admin_profile', JSON.stringify(firestoreResult.admin));
+        localStorage.setItem('novachat_admin_last_activity', Date.now().toString());
         setIsAdminLoginModalOpen(false);
         setAdminLoginPassword('');
         setAdminLoginError('');
@@ -577,6 +669,7 @@ export default function App() {
           setIsAdminLoggedIn(true);
           localStorage.setItem('novachat_admin_auth', 'true');
           localStorage.setItem('novachat_admin_user', JSON.stringify(data.user));
+          localStorage.setItem('novachat_admin_last_activity', Date.now().toString());
           setIsAdminLoginModalOpen(false);
           setAdminLoginPassword('');
           setAdminLoginError('');
@@ -606,6 +699,7 @@ export default function App() {
     ) {
       setIsAdminLoggedIn(true);
       localStorage.setItem('novachat_admin_auth', 'true');
+      localStorage.setItem('novachat_admin_last_activity', Date.now().toString());
       setIsAdminLoginModalOpen(false);
       setAdminLoginPassword('');
       setAdminLoginError('');
@@ -624,6 +718,9 @@ export default function App() {
   const handleAdminLogout = () => {
     setIsAdminLoggedIn(false);
     localStorage.removeItem('novachat_admin_auth');
+    localStorage.removeItem('novachat_admin_profile');
+    localStorage.removeItem('novachat_admin_user');
+    localStorage.removeItem('novachat_admin_last_activity');
     setActiveTab('widget_preview');
   };
 
@@ -1789,6 +1886,8 @@ export default function App() {
             messages={messages}
             widgetConfig={widgetConfig}
             blockedUsers={blockedUsers}
+            liveVisitors={liveVisitors}
+            onInviteToChat={handleProactiveInvite}
             onAddAgent={handleAddAgent}
             onDeleteAgent={handleDeleteAgent}
             onUpdateWidgetConfig={handleSaveSettings}

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   ShieldCheck,
   Lock,
@@ -41,6 +41,10 @@ import {
   ChevronRight,
   HelpCircle,
   Smartphone,
+  Laptop,
+  Tablet,
+  MapPin,
+  Compass,
   Maximize2,
   Minimize2,
   Volume2,
@@ -48,7 +52,13 @@ import {
   Info,
   FileText,
   Download,
-  ZoomIn
+  ZoomIn,
+  Share2,
+  Filter,
+  Activity,
+  ArrowUpRight,
+  MessageSquarePlus,
+  LayoutGrid
 } from 'lucide-react';
 import {
   Agent,
@@ -59,6 +69,7 @@ import {
   AdminUser,
   PromoBanner,
   NoticeHeaderConfig,
+  LiveVisitor,
   SUPPORT_PROBLEM_OPTIONS,
   type SupportProblemIssue
 } from '../../types';
@@ -75,6 +86,7 @@ import { CODE_GS_SCRIPT } from './CodeGsModal';
 import { LoadingSpinner, LoadingButton } from '../LoadingSpinner';
 import { NoticeHeaderBar } from '../CustomerWidget/NoticeHeaderBar';
 import { SpinnerSetupModal, SpinnerConfig } from './SpinnerSetupModal';
+import { WorldMapVisualization } from '../AgentWorkspace/WorldMapVisualization';
 
 interface AdminPanelProps {
   agents: Agent[];
@@ -83,6 +95,8 @@ interface AdminPanelProps {
   widgetConfig: WidgetConfig;
   blockedUsers?: BlockedUser[];
   adminUsers?: AdminUser[];
+  liveVisitors?: LiveVisitor[];
+  onInviteToChat?: (visitor: LiveVisitor) => void;
   onAddAgent: (agent: Omit<Agent, 'id'>) => void;
   onDeleteAgent: (agentId: string) => void;
   onUpdateWidgetConfig: (updated: Partial<WidgetConfig>) => void;
@@ -103,6 +117,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   widgetConfig,
   blockedUsers = [],
   adminUsers = [],
+  liveVisitors = [],
+  onInviteToChat,
   onAddAgent,
   onDeleteAgent,
   onUpdateWidgetConfig,
@@ -189,7 +205,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   // Active Admin Sub-tab
-  const [adminTab, setAdminTab] = useState<'overview' | 'live_chat' | 'agents' | 'codegs' | 'blocked_users' | 'admin_users' | 'settings' | 'promotion' | 'spinners' | 'telegram' | 'notice'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'live_chat' | 'visitors' | 'agents' | 'codegs' | 'blocked_users' | 'admin_users' | 'settings' | 'promotion' | 'spinners' | 'telegram' | 'notice'>('overview');
   const [isSpinnerModalOpen, setIsSpinnerModalOpen] = useState(false);
 
   // Website Promotion State (Multi-site)
@@ -562,6 +578,111 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setTimeout(() => setCopiedCode(false), 3000);
   };
 
+  // Visitor Device, Location & Referrer Categorizers
+  const getVisitorDeviceType = (v: LiveVisitor): 'phone' | 'desktop' | 'tablet' => {
+    if (v.deviceType) return v.deviceType;
+    const d = (v.device || '').toLowerCase();
+    if (d.includes('phone') || d.includes('android') || d.includes('iphone') || d.includes('mobile') || d.includes('ios') || d.includes('samsung') || d.includes('redmi') || d.includes('oneplus') || d.includes('xiaomi')) {
+      return 'phone';
+    }
+    if (d.includes('ipad') || d.includes('tablet')) {
+      return 'tablet';
+    }
+    return 'desktop';
+  };
+
+  const getTrafficSourceBadge = (referrer: string) => {
+    const ref = (referrer || '').toLowerCase();
+    if (ref.includes('google')) return { name: 'Google Search', icon: '🔍', color: 'bg-blue-50 text-blue-700 border-blue-200' };
+    if (ref.includes('facebook')) return { name: 'Facebook', icon: '📘', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+    if (ref.includes('youtube')) return { name: 'YouTube', icon: '▶️', color: 'bg-red-50 text-red-700 border-red-200' };
+    if (ref.includes('tiktok')) return { name: 'TikTok', icon: '🎵', color: 'bg-pink-50 text-pink-700 border-pink-200' };
+    if (ref.includes('telegram')) return { name: 'Telegram', icon: '✈️', color: 'bg-sky-50 text-sky-700 border-sky-200' };
+    if (ref.includes('linkedin')) return { name: 'LinkedIn', icon: '💼', color: 'bg-blue-50 text-blue-800 border-blue-300' };
+    if (ref.includes('direct') || !ref) return { name: 'Direct Link / ওয়েবসাইট', icon: '🔗', color: 'bg-slate-100 text-slate-700 border-slate-300' };
+    return { name: referrer, icon: '🌐', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  };
+
+  const allLiveVisitors = liveVisitors || [];
+
+  // Filter state for Visitor list in Overview and Visitors tab
+  const [visitorDeviceFilter, setVisitorDeviceFilter] = useState<'all' | 'phone' | 'desktop' | 'tablet'>('all');
+  const [visitorSearchTerm, setVisitorSearchTerm] = useState('');
+  const [visitorLocationFilter, setVisitorLocationFilter] = useState<'all' | string>('all');
+  const [visitorSourceFilter, setVisitorSourceFilter] = useState<'all' | string>('all');
+  const [showTacticalMap, setShowTacticalMap] = useState<boolean>(true);
+
+  // Visitor analytics metrics
+  const totalVisitorsCount = allLiveVisitors.length;
+  const phoneVisitorsCount = allLiveVisitors.filter((v) => getVisitorDeviceType(v) === 'phone').length;
+  const desktopVisitorsCount = allLiveVisitors.filter((v) => getVisitorDeviceType(v) === 'desktop').length;
+  const tabletVisitorsCount = allLiveVisitors.filter((v) => getVisitorDeviceType(v) === 'tablet').length;
+
+  const phonePercent = totalVisitorsCount > 0 ? Math.round((phoneVisitorsCount / totalVisitorsCount) * 100) : 0;
+  const desktopPercent = totalVisitorsCount > 0 ? Math.round((desktopVisitorsCount / totalVisitorsCount) * 100) : 0;
+  const tabletPercent = totalVisitorsCount > 0 ? Math.round((tabletVisitorsCount / totalVisitorsCount) * 100) : 0;
+
+  // Location aggregations
+  const locationBreakdown = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allLiveVisitors.forEach((v) => {
+      const loc = v.location || 'অজানা স্থান';
+      counts[loc] = (counts[loc] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([loc, count]) => ({
+        location: loc,
+        count,
+        percent: totalVisitorsCount > 0 ? Math.round((count / totalVisitorsCount) * 100) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [allLiveVisitors, totalVisitorsCount]);
+
+  // Traffic sources / Referrer aggregations
+  const sourceBreakdown = useMemo(() => {
+    const counts: Record<string, { count: number; meta: ReturnType<typeof getTrafficSourceBadge> }> = {};
+    allLiveVisitors.forEach((v) => {
+      const meta = getTrafficSourceBadge(v.referrer);
+      if (!counts[meta.name]) {
+        counts[meta.name] = { count: 0, meta };
+      }
+      counts[meta.name].count += 1;
+    });
+    return Object.entries(counts)
+      .map(([name, data]) => ({
+        name,
+        meta: data.meta,
+        count: data.count,
+        percent: totalVisitorsCount > 0 ? Math.round((data.count / totalVisitorsCount) * 100) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [allLiveVisitors, totalVisitorsCount]);
+
+  // Filtered live visitors
+  const filteredVisitors = useMemo(() => {
+    return allLiveVisitors.filter((v) => {
+      const dType = getVisitorDeviceType(v);
+      if (visitorDeviceFilter !== 'all' && dType !== visitorDeviceFilter) return false;
+      if (visitorLocationFilter !== 'all' && v.location !== visitorLocationFilter) return false;
+      if (visitorSourceFilter !== 'all' && getTrafficSourceBadge(v.referrer).name !== visitorSourceFilter) return false;
+
+      if (visitorSearchTerm.trim()) {
+        const q = visitorSearchTerm.toLowerCase();
+        const matchName = v.name.toLowerCase().includes(q);
+        const matchPhone = v.phone && v.phone.includes(q);
+        const matchIp = v.ip && v.ip.toLowerCase().includes(q);
+        const matchLoc = v.location.toLowerCase().includes(q);
+        const matchDevice = v.device.toLowerCase().includes(q);
+        const matchRef = v.referrer.toLowerCase().includes(q);
+        const matchPage = v.currentPage.toLowerCase().includes(q);
+        if (!matchName && !matchPhone && !matchIp && !matchLoc && !matchDevice && !matchRef && !matchPage) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [allLiveVisitors, visitorDeviceFilter, visitorLocationFilter, visitorSourceFilter, visitorSearchTerm]);
+
   // Calculated Stats
   const totalChats = chats.length;
   const resolvedChats = chats.filter((c) => c.status === 'resolved').length;
@@ -665,6 +786,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           >
             <MessageSquare className="w-3 h-3 text-amber-500 shrink-0" />
             <span>💬 কাস্টমার লাইভ চ্যাট ({chats.length})</span>
+          </button>
+
+          <button
+            onClick={() => setAdminTab('visitors')}
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shrink-0 ${
+              adminTab === 'visitors'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs font-bold'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Globe className="w-3 h-3 text-emerald-500 shrink-0" />
+            <span>🌐 লাইভ ভিজিটর ({allLiveVisitors.length})</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
           </button>
 
           <button
@@ -916,6 +1050,881 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Live Website Visitors & Device Analytics */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+                      <Globe className="w-4 h-4" />
+                    </span>
+                    <h3 className="font-bold text-slate-900 text-sm">
+                      লাইভ ওয়েবসাইট ভিজিটর ও ট্রাফিক রিপোর্ট
+                    </h3>
+                    <span className="flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                      রিয়েলটাইম লাইভ
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    ওয়েবসাইটে বর্তমানে মোট {totalVisitorsCount} জন সক্রিয় ভিজিটর ব্রাউজ করছেন
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAdminTab('visitors')}
+                    className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                  >
+                    <span>সম্পূর্ণ ভিজিটর ও ম্যাপ ড্যাশবোর্ড</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Visitor Metric Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 rounded-xl p-3.5 border border-emerald-100 space-y-1">
+                  <div className="flex items-center justify-between text-emerald-800 text-xs font-semibold">
+                    <span>মোট সক্রিয় ভিজিটর</span>
+                    <Activity className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="text-2xl font-black text-emerald-950 flex items-baseline gap-1.5">
+                    {totalVisitorsCount} <span className="text-xs font-normal text-emerald-700">জন</span>
+                  </div>
+                  <p className="text-[10px] text-emerald-700">লাইভ ব্রাউজিং করছেন</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-xl p-3.5 border border-blue-100 space-y-1">
+                  <div className="flex items-center justify-between text-blue-800 text-xs font-semibold">
+                    <span>📱 ফোন / মোবাইল ইউজার</span>
+                    <Smartphone className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="text-2xl font-black text-blue-950 flex items-baseline gap-1.5">
+                    {phoneVisitorsCount} <span className="text-xs font-bold text-blue-700">({phonePercent}%)</span>
+                  </div>
+                  <p className="text-[10px] text-blue-700">Android ও iPhone ইউজার</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50/50 rounded-xl p-3.5 border border-indigo-100 space-y-1">
+                  <div className="flex items-center justify-between text-indigo-800 text-xs font-semibold">
+                    <span>💻 ডেস্কটপ / কম্পিউটার</span>
+                    <Laptop className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div className="text-2xl font-black text-indigo-950 flex items-baseline gap-1.5">
+                    {desktopVisitorsCount} <span className="text-xs font-bold text-indigo-700">({desktopPercent}%)</span>
+                  </div>
+                  <p className="text-[10px] text-indigo-700">Windows, Mac ও Linux ইউজার</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 rounded-xl p-3.5 border border-amber-100 space-y-1">
+                  <div className="flex items-center justify-between text-amber-800 text-xs font-semibold">
+                    <span>🔗 শীর্ষ ট্রাফিক সোর্স</span>
+                    <Share2 className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div className="text-sm font-bold text-amber-950 truncate">
+                    {sourceBreakdown[0]?.name || 'Google Search'}
+                  </div>
+                  <p className="text-[10px] text-amber-700">
+                    {sourceBreakdown[0]?.count || 0} জন ইউজার ({sourceBreakdown[0]?.percent || 0}%)
+                  </p>
+                </div>
+              </div>
+
+              {/* Analytics 3-column breakdown: Device, Traffic Sources & Locations */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 1. Device Breakdown */}
+                <div className="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                      <span>ডিভাইস অনুপাত</span>
+                    </h4>
+                    <span className="text-[10px] text-slate-500 font-medium">মোবাইল বনাম পিসি</span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div>
+                      <div className="flex justify-between text-[11px] font-semibold text-slate-700 mb-1">
+                        <span className="flex items-center gap-1">📱 ফোন / মোবাইল ({phoneVisitorsCount} জন)</span>
+                        <span className="text-blue-600 font-bold">{phonePercent}%</span>
+                      </div>
+                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                        <div className="bg-blue-600 h-full rounded-full transition-all duration-500" style={{ width: `${phonePercent}%` }} />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] font-semibold text-slate-700 mb-1">
+                        <span className="flex items-center gap-1">💻 ডেস্কটপ / পিসি ({desktopVisitorsCount} জন)</span>
+                        <span className="text-indigo-600 font-bold">{desktopPercent}%</span>
+                      </div>
+                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                        <div className="bg-indigo-600 h-full rounded-full transition-all duration-500" style={{ width: `${desktopPercent}%` }} />
+                      </div>
+                    </div>
+
+                    {tabletVisitorsCount > 0 && (
+                      <div>
+                        <div className="flex justify-between text-[11px] font-semibold text-slate-700 mb-1">
+                          <span className="flex items-center gap-1">📲 ট্যাবলেট ({tabletVisitorsCount} জন)</span>
+                          <span className="text-purple-600 font-bold">{tabletPercent}%</span>
+                        </div>
+                        <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                          <div className="bg-purple-600 h-full rounded-full transition-all duration-500" style={{ width: `${tabletPercent}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Where users came from (Traffic Sources / Referrers) */}
+                <div className="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                      <Compass className="w-3.5 h-3.5 text-amber-600" />
+                      <span>কোথায় থেকে ইউজার আসলো</span>
+                    </h4>
+                    <span className="text-[10px] text-slate-500 font-medium">ট্রাফিক সোর্স</span>
+                  </div>
+
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {sourceBreakdown.map((src, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-200/60 text-[11px]">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span>{src.meta.icon}</span>
+                          <span className="font-semibold text-slate-800 truncate">{src.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 font-mono">
+                          <span className="font-bold text-slate-900">{src.count} জন</span>
+                          <span className="text-[10px] text-slate-500">({src.percent}%)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Top Locations */}
+                <div className="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-rose-600" />
+                      <span>শীর্ষ লোকেশন তালিকা</span>
+                    </h4>
+                    <span className="text-[10px] text-slate-500 font-medium">জেলা ও শহর</span>
+                  </div>
+
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {locationBreakdown.map((loc, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-200/60 text-[11px]">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                          <span className="font-semibold text-slate-800 truncate">{loc.location}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 font-mono">
+                          <span className="font-bold text-slate-900">{loc.count} জন</span>
+                          <span className="text-[10px] text-slate-500">({loc.percent}%)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Filter Bar & Interactive Visitors Table */}
+              <div className="space-y-3 pt-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  {/* Device Filter Buttons */}
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <button
+                      onClick={() => setVisitorDeviceFilter('all')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        visitorDeviceFilter === 'all'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      সব ({totalVisitorsCount})
+                    </button>
+                    <button
+                      onClick={() => setVisitorDeviceFilter('phone')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                        visitorDeviceFilter === 'phone'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Smartphone className="w-3 h-3" />
+                      <span>ফোন ইউজার ({phoneVisitorsCount})</span>
+                    </button>
+                    <button
+                      onClick={() => setVisitorDeviceFilter('desktop')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                        visitorDeviceFilter === 'desktop'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Laptop className="w-3 h-3" />
+                      <span>ডেস্কটপ ইউজার ({desktopVisitorsCount})</span>
+                    </button>
+                    {tabletVisitorsCount > 0 && (
+                      <button
+                        onClick={() => setVisitorDeviceFilter('tablet')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                          visitorDeviceFilter === 'tablet'
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        <Tablet className="w-3 h-3" />
+                        <span>ট্যাবলেট ({tabletVisitorsCount})</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Search Input */}
+                  <div className="relative min-w-[200px] sm:w-64">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="নাম, ফোন, IP বা লোকেশন খুঁজুন..."
+                      value={visitorSearchTerm}
+                      onChange={(e) => setVisitorSearchTerm(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                    />
+                    {visitorSearchTerm && (
+                      <button
+                        onClick={() => setVisitorSearchTerm('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Table of Live Visitors */}
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold text-[11px]">
+                        <th className="py-2.5 px-3">ভিজিটর ও ফোন / IP</th>
+                        <th className="py-2.5 px-3">ডিভাইস ও ব্রাউজার</th>
+                        <th className="py-2.5 px-3">লোকেশন (Location)</th>
+                        <th className="py-2.5 px-3">কোথায় থেকে আসলো (Source)</th>
+                        <th className="py-2.5 px-3">ভিজিট করা পেজ</th>
+                        <th className="py-2.5 px-3">স্ট্যাটাস</th>
+                        <th className="py-2.5 px-3 text-right">অ্যাকশন</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700 text-[11px]">
+                      {filteredVisitors.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-6 text-slate-500 font-medium">
+                            কোনো ভিজিটর তথ্য পাওয়া যায়নি।
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredVisitors.map((v) => {
+                          const dType = getVisitorDeviceType(v);
+                          const srcBadge = getTrafficSourceBadge(v.referrer);
+                          return (
+                            <tr key={v.id} className="hover:bg-slate-50/80 transition">
+                              <td className="py-2.5 px-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                                    {v.name.charAt(0)}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-slate-900">{maskUserInfo(v.name, 'name')}</div>
+                                    <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 flex-wrap">
+                                      <span>📞 {maskUserInfo(v.phone || '01712345678', 'phone')}</span>
+                                      <span>•</span>
+                                      <span>IP: {maskUserInfo(v.ip, 'ip')}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-2.5 px-3">
+                                <div className="space-y-0.5">
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                      dType === 'phone'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : dType === 'tablet'
+                                        ? 'bg-purple-100 text-purple-800'
+                                        : 'bg-indigo-100 text-indigo-800'
+                                    }`}
+                                  >
+                                    {dType === 'phone' && <Smartphone className="w-3 h-3" />}
+                                    {dType === 'desktop' && <Laptop className="w-3 h-3" />}
+                                    {dType === 'tablet' && <Tablet className="w-3 h-3" />}
+                                    <span>
+                                      {dType === 'phone' ? '📱 ফোন (Mobile)' : dType === 'tablet' ? '📲 ট্যাবলেট' : '💻 ডেস্কটপ (PC)'}
+                                    </span>
+                                  </span>
+                                  <div className="text-[10px] text-slate-500 truncate max-w-[150px] font-medium" title={v.device}>
+                                    {v.device}
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-2.5 px-3">
+                                <div className="flex items-center gap-1 font-medium text-slate-800">
+                                  <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
+                                  <span>{v.location}</span>
+                                </div>
+                              </td>
+
+                              <td className="py-2.5 px-3">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${srcBadge.color}`}>
+                                  <span>{srcBadge.icon}</span>
+                                  <span>{srcBadge.name}</span>
+                                </span>
+                              </td>
+
+                              <td className="py-2.5 px-3">
+                                <div className="space-y-0.5 font-mono text-[10px]">
+                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-semibold">
+                                    {v.currentPage}
+                                  </span>
+                                  <div className="text-slate-500 text-[9px]">{v.timeOnPage} ধরে</div>
+                                </div>
+                              </td>
+
+                              <td className="py-2.5 px-3">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                    v.status === 'in_chat'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : v.status === 'invited'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-sky-100 text-sky-800'
+                                  }`}
+                                >
+                                  {v.status === 'in_chat' ? 'চ্যাটে যুক্ত' : v.status === 'invited' ? 'আমন্ত্রিত' : 'ব্রাউজিং'}
+                                </span>
+                              </td>
+
+                              <td className="py-2.5 px-3 text-right">
+                                <button
+                                  onClick={() => {
+                                    if (onInviteToChat) {
+                                      onInviteToChat(v);
+                                    } else if (onStartNewChat) {
+                                      onStartNewChat({
+                                        customerName: v.name,
+                                        customerPhone: v.phone || '01712345678',
+                                        customerEmail: v.email || 'visitor@store.com',
+                                        department: 'Customer Support',
+                                        subject: `Chat with ${v.name} from ${v.location}`,
+                                        initialMessage: `👋 হ্যালো ${v.name}! আমি দেখতে পাচ্ছি আপনি আমাদের ওয়েবসাইট ব্রাউজ করছেন। কোনো তথ্য দিয়ে সাহায্য করতে পারি?`
+                                      });
+                                      setAdminTab('live_chat');
+                                    }
+                                  }}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg transition inline-flex items-center gap-1 cursor-pointer shadow-xs"
+                                  title="ভিজিটরকে সরাসরি চ্যাটে আমন্ত্রণ জানান"
+                                >
+                                  <MessageSquare className="w-3 h-3" />
+                                  <span>চ্যাট ইনভাইট</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: LIVE VISITORS (DEDICATED VISITOR ANALYTICS & MAP) */}
+        {adminTab === 'visitors' && (
+          <div className="space-y-6 animate-in fade-in">
+            {/* Header with Title and Quick Summary */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-xs">
+                    <Globe className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <span>লাইভ ওয়েবসাইট ভিজিটর ট্র্যাকিং ও অ্যানালিটিক্স</span>
+                      <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                        {allLiveVisitors.length} জন সক্রিয়
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      ভিজিটরের ডিভাইস (ফোন/ডেস্কটপ), লোকেশন (শহর/দেশ), এবং কোন উৎস (Traffic Source) থেকে এসেছে তা রিয়েলটাইমে মনিটর করুন।
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setShowTacticalMap(!showTacticalMap)}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer border shadow-2xs ${
+                    showTacticalMap
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                  <span>{showTacticalMap ? '🗺️ ম্যাপ বন্ধ করুন' : '🗺️ লাইভ ম্যাপ দেখুন'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tactical Live Map View */}
+            {showTacticalMap && (
+              <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800 shadow-lg text-white space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <h3 className="font-bold text-xs text-slate-200">
+                      🌍 লাইভ জিওলোকেশন ও ট্রাফিক মানচিত্র (Live Geolocation Radar)
+                    </h3>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    অ্যাক্টিভ নোডস: {allLiveVisitors.length} টি
+                  </span>
+                </div>
+                <div className="h-64 sm:h-80 w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-800/80">
+                  <WorldMapVisualization visitors={allLiveVisitors} />
+                </div>
+              </div>
+            )}
+
+            {/* 4 Stat Overview Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-slate-500 text-xs">
+                  <span>মোট লাইভ ভিজিটর</span>
+                  <Globe className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div className="text-2xl font-black text-slate-900">{totalVisitorsCount} জন</div>
+                <p className="text-[11px] text-emerald-600 font-semibold">● সাইটে সক্রিয় রয়েছেন</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-slate-500 text-xs">
+                  <span>📱 ফোন / মোবাইল ভিজিটর</span>
+                  <Smartphone className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="text-2xl font-black text-blue-600">{phoneVisitorsCount} জন</div>
+                <p className="text-[11px] text-slate-500">মোট ভিজিটরের {phonePercent}%</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-slate-500 text-xs">
+                  <span>💻 ডেস্কটপ / পিসি ভিজিটর</span>
+                  <Laptop className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div className="text-2xl font-black text-indigo-600">{desktopVisitorsCount} জন</div>
+                <p className="text-[11px] text-slate-500">মোট ভিজিটরের {desktopPercent}%</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-slate-500 text-xs">
+                  <span>🔗 প্রধান রেফারাল সোর্স</span>
+                  <Compass className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="text-lg font-black text-amber-700 truncate">
+                  {sourceBreakdown[0]?.name || 'Google Search'}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {sourceBreakdown[0]?.count || 0} জন ({sourceBreakdown[0]?.percent || 0}%)
+                </p>
+              </div>
+            </div>
+
+            {/* Breakdown Grids: Device Types, Top Sources, and Locations */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Device Card */}
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                <h3 className="font-bold text-slate-900 text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Smartphone className="w-4 h-4 text-blue-600" />
+                    <span>ডিভাইস বিভাজন (Device Type)</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-normal">অনুপাত</span>
+                </h3>
+
+                <div className="space-y-3">
+                  <div className="bg-blue-50/60 p-3 rounded-xl border border-blue-100">
+                    <div className="flex justify-between items-center text-xs font-bold text-blue-900 mb-1.5">
+                      <span className="flex items-center gap-1.5">
+                        <Smartphone className="w-4 h-4 text-blue-600" />
+                        <span>📱 ফোন ইউজার (Mobile)</span>
+                      </span>
+                      <span>{phoneVisitorsCount} জন ({phonePercent}%)</span>
+                    </div>
+                    <div className="w-full bg-blue-200 h-2 rounded-full overflow-hidden">
+                      <div className="bg-blue-600 h-full rounded-full" style={{ width: `${phonePercent}%` }} />
+                    </div>
+                    <p className="text-[10px] text-blue-700 mt-1">iPhone, Samsung, Xiaomi, OnePlus ইত্যাদি</p>
+                  </div>
+
+                  <div className="bg-indigo-50/60 p-3 rounded-xl border border-indigo-100">
+                    <div className="flex justify-between items-center text-xs font-bold text-indigo-900 mb-1.5">
+                      <span className="flex items-center gap-1.5">
+                        <Laptop className="w-4 h-4 text-indigo-600" />
+                        <span>💻 ডেস্কটপ / কম্পিউটার (PC)</span>
+                      </span>
+                      <span>{desktopVisitorsCount} জন ({desktopPercent}%)</span>
+                    </div>
+                    <div className="w-full bg-indigo-200 h-2 rounded-full overflow-hidden">
+                      <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${desktopPercent}%` }} />
+                    </div>
+                    <p className="text-[10px] text-indigo-700 mt-1">Windows 11/10, macOS, Ubuntu Linux</p>
+                  </div>
+
+                  {tabletVisitorsCount > 0 && (
+                    <div className="bg-purple-50/60 p-3 rounded-xl border border-purple-100">
+                      <div className="flex justify-between items-center text-xs font-bold text-purple-900 mb-1.5">
+                        <span className="flex items-center gap-1.5">
+                          <Tablet className="w-4 h-4 text-purple-600" />
+                          <span>📲 ট্যাবলেট (iPad / Tab)</span>
+                        </span>
+                        <span>{tabletVisitorsCount} জন ({tabletPercent}%)</span>
+                      </div>
+                      <div className="w-full bg-purple-200 h-2 rounded-full overflow-hidden">
+                        <div className="bg-purple-600 h-full rounded-full" style={{ width: `${tabletPercent}%` }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Traffic Sources Card */}
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                <h3 className="font-bold text-slate-900 text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Compass className="w-4 h-4 text-amber-600" />
+                    <span>কোথায় থেকে আসলো (Traffic Source)</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-normal">রেফারাল</span>
+                </h3>
+
+                <div className="space-y-2">
+                  {sourceBreakdown.map((src, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => setVisitorSourceFilter(visitorSourceFilter === src.name ? 'all' : src.name)}
+                      className={`p-2.5 rounded-xl border transition cursor-pointer ${
+                        visitorSourceFilter === src.name
+                          ? 'bg-amber-50 border-amber-300 shadow-xs'
+                          : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <span>{src.meta.icon}</span>
+                          <span>{src.name}</span>
+                        </span>
+                        <span className="font-bold text-slate-900">{src.count} জন ({src.percent}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-amber-500 h-full rounded-full" style={{ width: `${src.percent}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Locations Card */}
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                <h3 className="font-bold text-slate-900 text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-rose-600" />
+                    <span>লোকেশন তালিকা (Visitor Locations)</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-normal">শহর ও জেলা</span>
+                </h3>
+
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {locationBreakdown.map((loc, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => setVisitorLocationFilter(visitorLocationFilter === loc.location ? 'all' : loc.location)}
+                      className={`p-2.5 rounded-xl border transition cursor-pointer ${
+                        visitorLocationFilter === loc.location
+                          ? 'bg-rose-50 border-rose-300 shadow-xs'
+                          : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                          <span>{loc.location}</span>
+                        </span>
+                        <span className="font-bold text-slate-900">{loc.count} জন ({loc.percent}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-rose-500 h-full rounded-full" style={{ width: `${loc.percent}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Complete Visitors Interactive Table with Full Actions */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <span>লাইভ ভিজিটর তালিকা ও যোগাযোগ কন্ট্রোল</span>
+                    <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                      প্রদর্শিত: {filteredVisitors.length} জন
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    ফিল্টার অনুযায়ী যেকোনো ভিজিটরকে সরাসরি লাইভ চ্যাটে আমন্ত্রণ জানাতে 'চ্যাট ইনভাইট' বাটনে ক্লিক করুন।
+                  </p>
+                </div>
+
+                {/* Filters & Search */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Device Filters */}
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs font-semibold">
+                    <button
+                      onClick={() => setVisitorDeviceFilter('all')}
+                      className={`px-2.5 py-1 rounded-lg transition ${
+                        visitorDeviceFilter === 'all' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      সব
+                    </button>
+                    <button
+                      onClick={() => setVisitorDeviceFilter('phone')}
+                      className={`px-2.5 py-1 rounded-lg transition flex items-center gap-1 ${
+                        visitorDeviceFilter === 'phone' ? 'bg-blue-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Smartphone className="w-3 h-3" />
+                      <span>ফোন</span>
+                    </button>
+                    <button
+                      onClick={() => setVisitorDeviceFilter('desktop')}
+                      className={`px-2.5 py-1 rounded-lg transition flex items-center gap-1 ${
+                        visitorDeviceFilter === 'desktop' ? 'bg-indigo-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Laptop className="w-3 h-3" />
+                      <span>ডেস্কটপ</span>
+                    </button>
+                  </div>
+
+                  {/* Search */}
+                  <div className="relative min-w-[200px]">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="নাম, ফোন, IP, লোকেশন..."
+                      value={visitorSearchTerm}
+                      onChange={(e) => setVisitorSearchTerm(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                    />
+                    {visitorSearchTerm && (
+                      <button
+                        onClick={() => setVisitorSearchTerm('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Filter Chips */}
+              {(visitorDeviceFilter !== 'all' || visitorLocationFilter !== 'all' || visitorSourceFilter !== 'all' || visitorSearchTerm) && (
+                <div className="flex items-center gap-1.5 flex-wrap text-[11px] pb-1">
+                  <span className="text-slate-500 font-bold">সক্রিয় ফিল্টার:</span>
+                  {visitorDeviceFilter !== 'all' && (
+                    <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                      ডিভাইস: {visitorDeviceFilter === 'phone' ? '📱 ফোন' : '💻 ডেস্কটপ'}
+                      <button onClick={() => setVisitorDeviceFilter('all')} className="hover:text-blue-950"><X className="w-3 h-3" /></button>
+                    </span>
+                  )}
+                  {visitorLocationFilter !== 'all' && (
+                    <span className="bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                      লোকেশন: {visitorLocationFilter}
+                      <button onClick={() => setVisitorLocationFilter('all')} className="hover:text-rose-950"><X className="w-3 h-3" /></button>
+                    </span>
+                  )}
+                  {visitorSourceFilter !== 'all' && (
+                    <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                      উৎস: {visitorSourceFilter}
+                      <button onClick={() => setVisitorSourceFilter('all')} className="hover:text-amber-950"><X className="w-3 h-3" /></button>
+                    </span>
+                  )}
+                  {visitorSearchTerm && (
+                    <span className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                      অনুসন্ধান: "{visitorSearchTerm}"
+                      <button onClick={() => setVisitorSearchTerm('')} className="hover:text-slate-950"><X className="w-3 h-3" /></button>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => {
+                      setVisitorDeviceFilter('all');
+                      setVisitorLocationFilter('all');
+                      setVisitorSourceFilter('all');
+                      setVisitorSearchTerm('');
+                    }}
+                    className="text-xs text-rose-600 hover:underline font-bold ml-1 cursor-pointer"
+                  >
+                    সব রিসেট করুন
+                  </button>
+                </div>
+              )}
+
+              {/* Table */}
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold text-[11px]">
+                      <th className="py-3 px-3">ভিজিটর ও ফোন / IP</th>
+                      <th className="py-3 px-3">ডিভাইস ও ব্রাউজার (Device)</th>
+                      <th className="py-3 px-3">লোকেশন (Location)</th>
+                      <th className="py-3 px-3">কোথায় থেকে আসলো (Source)</th>
+                      <th className="py-3 px-3">ভিজিট করা পেজ</th>
+                      <th className="py-3 px-3">স্ট্যাটাস</th>
+                      <th className="py-3 px-3 text-right">অ্যাকশন</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700 text-[11px]">
+                    {filteredVisitors.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-8 text-slate-500 font-medium">
+                          কোনো ভিজিটর খুঁজে পাওয়া যায়নি।
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredVisitors.map((v) => {
+                        const dType = getVisitorDeviceType(v);
+                        const srcBadge = getTrafficSourceBadge(v.referrer);
+                        return (
+                          <tr key={v.id} className="hover:bg-slate-50/80 transition">
+                            <td className="py-3 px-3">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                                  {v.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-slate-900 text-xs">{maskUserInfo(v.name, 'name')}</div>
+                                  <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 flex-wrap mt-0.5">
+                                    <span>📞 {maskUserInfo(v.phone || '01712345678', 'phone')}</span>
+                                    <span>•</span>
+                                    <span>IP: {maskUserInfo(v.ip, 'ip')}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <div className="space-y-1">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    dType === 'phone'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : dType === 'tablet'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : 'bg-indigo-100 text-indigo-800'
+                                  }`}
+                                >
+                                  {dType === 'phone' && <Smartphone className="w-3 h-3" />}
+                                  {dType === 'desktop' && <Laptop className="w-3 h-3" />}
+                                  {dType === 'tablet' && <Tablet className="w-3 h-3" />}
+                                  <span>
+                                    {dType === 'phone' ? '📱 ফোন (Mobile)' : dType === 'tablet' ? '📲 ট্যাবলেট' : '💻 ডেস্কটপ (PC)'}
+                                  </span>
+                                </span>
+                                <div className="text-[10px] text-slate-500 font-medium truncate max-w-[170px]" title={v.device}>
+                                  {v.device}
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <div className="flex items-center gap-1 font-medium text-slate-800">
+                                <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                <span>{v.location}</span>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${srcBadge.color}`}>
+                                <span>{srcBadge.icon}</span>
+                                <span>{srcBadge.name}</span>
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <div className="space-y-0.5 font-mono text-[10px]">
+                                <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-800 font-semibold inline-block">
+                                  {v.currentPage}
+                                </span>
+                                <div className="text-slate-500 text-[9px]">{v.timeOnPage} ধরে অবস্থান</div>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  v.status === 'in_chat'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : v.status === 'invited'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-sky-100 text-sky-800'
+                                }`}
+                              >
+                                {v.status === 'in_chat' ? 'চ্যাটে যুক্ত' : v.status === 'invited' ? 'আমন্ত্রিত' : 'ব্রাউজিং'}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-3 text-right">
+                              <button
+                                onClick={() => {
+                                  if (onInviteToChat) {
+                                    onInviteToChat(v);
+                                  } else if (onStartNewChat) {
+                                    onStartNewChat({
+                                      customerName: v.name,
+                                      customerPhone: v.phone || '01712345678',
+                                      customerEmail: v.email || 'visitor@store.com',
+                                      department: 'Customer Support',
+                                      subject: `Chat with ${v.name} from ${v.location}`,
+                                      initialMessage: `👋 হ্যালো ${v.name}! আমি দেখতে পাচ্ছি আপনি আমাদের ওয়েবসাইট ব্রাউজ করছেন। কোনো তথ্য দিয়ে সাহায্য করতে পারি?`
+                                    });
+                                    setAdminTab('live_chat');
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-xl transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                title="ভিজিটরকে সরাসরি চ্যাটে আমন্ত্রণ জানান"
+                              >
+                                <MessageSquarePlus className="w-3.5 h-3.5" />
+                                <span>চ্যাট ইনভাইট</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -136,13 +136,16 @@ export interface LiveVisitor {
   id: string;
   name: string;
   email?: string;
+  phone?: string;
   location: string;
   currentPage: string;
   timeOnPage: string;
   device: string;
+  deviceType?: 'phone' | 'desktop' | 'tablet';
   ip: string;
   referrer: string;
   status: 'browsing' | 'in_chat' | 'invited';
+  visitedAt?: string;
 }
 
 export interface PromoBanner {
