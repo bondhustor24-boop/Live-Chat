@@ -1553,13 +1553,20 @@ export default function App() {
 
   const handleAgentTyping = (isTyping: boolean) => {
     if (!selectedChatId) return;
-    syncTypingStatusToFirestore(selectedChatId, 'agent', isTyping, activeAgent.name);
+    const currentChat = chats.find((c) => c.id === selectedChatId);
+    const typingAgentName =
+      currentChat?.assignedAgentName ||
+      currentChat?.assignedAgent?.name ||
+      activeAgent?.name ||
+      'সাপোর্ট এজেন্ট';
+
+    syncTypingStatusToFirestore(selectedChatId, 'agent', isTyping, typingAgentName);
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           type: 'typing',
           chatId: selectedChatId,
-          senderName: activeAgent.name,
+          senderName: typingAgentName,
           senderRole: 'agent',
           isTyping,
         })
@@ -1571,16 +1578,45 @@ export default function App() {
     const ag = agents.find((a) => a.id === agentId);
     if (!ag) return;
 
+    setActiveAgent(ag);
+
+    const joinMessageText = `${ag.name} চ্যাটে যুক্ত হয়েছেন এবং এই চ্যাটে অ্যাসাইন করা হয়েছে।`;
+    const sysMessage: ChatMessage = {
+      id: 'msg_sys_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
+      chatId: chatId,
+      senderRole: 'system',
+      senderName: 'System',
+      content: joinMessageText,
+      timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
+      createdAt: new Date().toISOString(),
+      isInternalNote: false,
+    };
+
     setChats((prev) =>
       prev.map((c) => {
         if (c.id === chatId) {
-          const updated = { ...c, assignedAgent: ag, assignedAgentId: ag.id };
+          const updated = {
+            ...c,
+            assignedAgent: ag,
+            assignedAgentId: ag.id,
+            assignedAgentName: ag.name,
+            assignedAgentAvatar: ag.avatar,
+            status: 'active',
+            updatedAt: new Date().toISOString(),
+          };
           syncChatToFirestore(updated);
           return updated;
         }
         return c;
       })
     );
+
+    setMessages((prev) => ({
+      ...prev,
+      [chatId]: [...(prev[chatId] || []), sysMessage],
+    }));
+
+    syncMessageToFirestore(sysMessage);
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(

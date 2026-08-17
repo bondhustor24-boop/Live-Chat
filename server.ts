@@ -501,17 +501,20 @@ wss.on('connection', (ws: ClientSocket) => {
             targetChat.status = 'active';
             targetChat.updatedAt = new Date().toISOString();
 
-            // Internal note system event
+            // System event message
             const sysMessage: ChatMessage = {
               id: 'msg_sys_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
               chatId: parsed.chatId,
               senderRole: 'system',
               senderName: 'System',
-              content: `${parsed.agentName} joined and was assigned to this chat.`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              content: `${parsed.agentName} চ্যাটে যুক্ত হয়েছেন এবং এই চ্যাটে অ্যাসাইন করা হয়েছে।`,
+              timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
               createdAt: new Date().toISOString(),
-              isInternalNote: true,
+              isInternalNote: false,
             };
+            if (!messages[parsed.chatId]) {
+              messages[parsed.chatId] = [];
+            }
             messages[parsed.chatId].push(sysMessage);
 
             syncChatToFirestore(targetChat);

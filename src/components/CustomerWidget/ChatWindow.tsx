@@ -289,8 +289,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   // Determine current active chat header profile
-  const assignedName = chat.assignedAgentName || widgetConfig.botName;
-  const assignedAvatar = chat.assignedAgentAvatar || widgetConfig.botAvatar;
+  const assignedName = chat.assignedAgentName || chat.assignedAgent?.name || widgetConfig.botName;
+  const assignedAvatar = chat.assignedAgentAvatar || chat.assignedAgent?.avatar || widgetConfig.botAvatar;
+  const typingDisplayName = (typeof isTypingAgent === 'string' && isTypingAgent.trim() !== '') ? isTypingAgent : (assignedName || 'এজেন্ট');
 
   return (
     <div id="customer-chat-window" className="flex flex-col h-full bg-slate-50 rounded-2xl overflow-hidden shadow-2xl border border-slate-200">
@@ -325,7 +326,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               {isTypingAgent ? (
                 <span className="text-amber-200 font-bold animate-pulse flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping inline-block" />
-                  {isTypingAgent} লিখছেন...
+                  {typingDisplayName} লিখছেন...
                 </span>
               ) : (
                 <span className="capitalize text-emerald-300 font-medium">
@@ -529,7 +530,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               </div>
             </div>
             <span className="text-xs font-semibold text-blue-800">
-              {isTypingAgent} মেসেজ টাইপ করছেন...
+              {typingDisplayName} মেসেজ টাইপ করছেন...
             </span>
           </div>
         )}
