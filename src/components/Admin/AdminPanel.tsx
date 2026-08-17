@@ -1750,6 +1750,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
             </div>
 
+            {/* Comprehensive Visitor Analytics Dashboard (Today, This Week, This Month, This Year) */}
+            <VisitorAnalyticsDashboard
+              stats={visitorStatsSummary}
+              logs={visitorLogs}
+              liveVisitors={allLiveVisitors}
+              activeTimeframe={activeVisitorTimeframe}
+              onTimeframeChange={(tf) => setActiveVisitorTimeframe(tf)}
+              onRefresh={handleRefreshVisitorStats}
+              onInviteToChat={onInviteToChat}
+            />
+
             {/* Tactical Live Map View */}
             {showTacticalMap && (
               <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800 shadow-lg text-white space-y-3">

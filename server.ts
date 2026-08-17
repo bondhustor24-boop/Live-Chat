@@ -1349,6 +1349,39 @@ app.get('/api/analytics/visitor-logs', (req, res) => {
   }
 });
 
+// POST Clear Demo Visitor Logs & Retain Real Live Visitors Only
+app.post('/api/analytics/clear-demo', async (req, res) => {
+  try {
+    visitorLogs = visitorLogs.filter(
+      (l) =>
+        !l.id?.includes('seed') &&
+        !l.id?.includes('demo') &&
+        !l.visitorId?.includes('seed') &&
+        !l.visitorId?.includes('demo')
+    );
+    liveVisitors = liveVisitors.filter(
+      (v) =>
+        !v.id?.includes('seed') &&
+        !v.id?.includes('demo') &&
+        !v.name?.includes('#') &&
+        !v.name?.includes('Demo')
+    );
+    broadcast({
+      type: 'visitors_updated',
+      visitors: liveVisitors,
+    });
+    res.json({ success: true, message: 'সকল ডেমো ভিজিটর ডেটা সফলভাবে মুছে ফেলা হয়েছে।' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST Clear All Visitor Logs
+app.post('/api/analytics/clear-logs', (req, res) => {
+  visitorLogs = [];
+  res.json({ success: true, message: 'সকল ভিজিটর লগ মুছে ফেলা হয়েছে।' });
+});
+
 // POST Record or Update Custom Visit Log
 app.post('/api/analytics/record-visit', (req, res) => {
   try {
@@ -1858,7 +1891,13 @@ async function startServer() {
       },
       (updatedVisitors) => {
         if (updatedVisitors) {
-          liveVisitors = updatedVisitors;
+          liveVisitors = updatedVisitors.filter(
+            (v: any) =>
+              !v.id?.includes('seed') &&
+              !v.id?.includes('demo') &&
+              !v.name?.includes('#') &&
+              !v.name?.includes('Demo')
+          );
           broadcast({ type: 'visitors_updated', visitors: liveVisitors });
         }
       }

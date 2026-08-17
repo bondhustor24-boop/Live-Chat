@@ -5,6 +5,7 @@ import {
   VisitorStatsSummary,
   VisitorTimeframeFilter,
 } from '../../types';
+import { clearDemoVisitorLogs } from '../../lib/visitorStats';
 import {
   Users,
   Eye,
@@ -30,6 +31,7 @@ import {
   ExternalLink,
   Sparkles,
   BarChart3,
+  Trash2,
 } from 'lucide-react';
 
 interface VisitorAnalyticsDashboardProps {
@@ -87,6 +89,20 @@ export const VisitorAnalyticsDashboard: React.FC<VisitorAnalyticsDashboardProps>
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Clear demo / test visitor data
+  const [isClearing, setIsClearing] = useState(false);
+  const handleClearDemoData = async () => {
+    setIsClearing(true);
+    try {
+      clearDemoVisitorLogs();
+      await fetch('/api/analytics/clear-demo', { method: 'POST' }).catch(() => {});
+      if (onRefresh) onRefresh();
+    } catch {}
+    setTimeout(() => {
+      setIsClearing(false);
+    }, 600);
   };
 
   // Filtered visitor list based on current timeframe
@@ -509,6 +525,16 @@ export const VisitorAnalyticsDashboard: React.FC<VisitorAnalyticsDashboardProps>
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+          <button
+            onClick={handleClearDemoData}
+            disabled={isClearing}
+            className="px-3 py-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
+            title="ডেমো ও নমুনা ভিজিটর ডাটা মুছে ফেলুন"
+          >
+            <Trash2 className={`w-3.5 h-3.5 ${isClearing ? 'animate-spin' : ''}`} />
+            <span>{isClearing ? 'মুছে ফেলা হচ্ছে...' : 'ডেমো ডাটা মুছুন'}</span>
+          </button>
+
           {onRefresh && (
             <button
               onClick={onRefresh}
