@@ -61,6 +61,8 @@ export interface CustomerInfo {
   tags?: string[];
   notes?: string;
   customData?: Record<string, string>;
+  pathHistory?: VisitorPageVisit[];
+  chatInitiatedPage?: string;
 }
 
 export interface ChatSession {
@@ -132,6 +134,15 @@ export interface CannedResponse {
   category: string;
 }
 
+export interface VisitorPageVisit {
+  id?: string;
+  path: string;
+  title: string;
+  timestamp: number;
+  timeSpent?: string;
+  isChatEntry?: boolean;
+}
+
 export interface LiveVisitor {
   id: string;
   name: string;
@@ -146,6 +157,9 @@ export interface LiveVisitor {
   referrer: string;
   status: 'browsing' | 'in_chat' | 'invited';
   visitedAt?: string;
+  pathHistory?: VisitorPageVisit[];
+  chatInitiatedPage?: string;
+  chatInitiatedAt?: string;
 }
 
 export interface PromoBanner {

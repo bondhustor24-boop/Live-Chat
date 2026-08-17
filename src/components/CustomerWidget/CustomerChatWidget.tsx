@@ -4,6 +4,7 @@ import { PreChatForm } from './PreChatForm';
 import { ChatWindow } from './ChatWindow';
 import { SatisfactionRating } from './SatisfactionRating';
 import { ChatSession, ChatMessage, WidgetConfig } from '../../types';
+import { recordChatInitiation } from '../../lib/visitorTracker';
 
 interface CustomerChatWidgetProps {
   widgetConfig: WidgetConfig;
@@ -53,6 +54,7 @@ export const CustomerChatWidget: React.FC<CustomerChatWidgetProps> = ({
     problemIssue?: string;
     initialMessage: string;
   }) => {
+    recordChatInitiation();
     onStartChat(data);
     setIsFullScreen(true); // Automatically show full page chat box when start chat is clicked!
   };
@@ -172,7 +174,10 @@ export const CustomerChatWidget: React.FC<CustomerChatWidgetProps> = ({
         >
           <button
             id="widget-launcher-bubble"
-            onClick={() => setIsOpen(true)}
+            onClick={() => {
+              recordChatInitiation();
+              setIsOpen(true);
+            }}
             style={{ backgroundColor: widgetConfig.primaryColor }}
             className="w-14 h-14 rounded-full text-white shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 group relative ring-4 ring-white/20 cursor-pointer"
           >

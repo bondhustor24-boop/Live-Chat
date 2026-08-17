@@ -45,7 +45,12 @@ import {
 } from './lib/firestoreSync';
 import { sendTelegramNotification } from './lib/telegramNotify';
 import { getOrCreatePersistentCustomerId, saveCustomerProfile } from './lib/visitorIdentity';
-import { startVisitorTracker } from './lib/visitorTracker';
+import {
+  startVisitorTracker,
+  recordChatInitiation,
+  getVisitorPathHistory,
+  recordVisitorPageVisit
+} from './lib/visitorTracker';
 
 export default function App() {
   const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes inactivity timeout
@@ -363,6 +368,7 @@ export default function App() {
       email?: string;
       status?: 'browsing' | 'in_chat' | 'invited';
     }) => void;
+    trackNavigation: (path: string, title?: string) => void;
     stop: () => void;
   } | null>(null);
 
@@ -921,6 +927,9 @@ export default function App() {
     const cleanPhone = (data.customerPhone || '').replace(/[^0-9]/g, '');
     saveCustomerProfile(data.customerName, cleanPhone, data.customerEmail);
 
+    const chatInitMeta = recordChatInitiation();
+    const currentPathHistory = getVisitorPathHistory();
+
     if (visitorTrackerRef.current) {
       visitorTrackerRef.current.updateVisitorInfo({
         name: data.customerName,
@@ -951,6 +960,8 @@ export default function App() {
           chatId: targetChatId,
           customerId: persistentCustomerId,
           visitorId: persistentCustomerId,
+          pathHistory: currentPathHistory,
+          chatInitiatedPage: chatInitMeta.page,
         }),
       });
       if (res.ok) {
@@ -986,6 +997,8 @@ export default function App() {
           name: data.customerName || existingChat.customer.name,
           email: data.customerEmail || existingChat.customer.email,
           phone: data.customerPhone || existingChat.customer.phone,
+          pathHistory: currentPathHistory,
+          chatInitiatedPage: chatInitMeta.page,
         },
         department: data.department || existingChat.department,
         subject: data.subject || existingChat.subject,
@@ -1033,6 +1046,8 @@ export default function App() {
           avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
           ipAddress: '127.0.0.1 (Web)',
           location: 'বাংলাদেশ',
+          pathHistory: currentPathHistory,
+          chatInitiatedPage: chatInitMeta.page,
         },
         status: 'active',
         priority: 'medium',
@@ -1825,7 +1840,14 @@ export default function App() {
         {/* Tab 1: Customer Storefront Preview */}
         {activeTab === 'widget_preview' && !isAdminLoggedIn && (
           <div className="flex-1 flex overflow-hidden relative">
-            <StorefrontPreview widgetConfig={widgetConfig} />
+            <StorefrontPreview
+              widgetConfig={widgetConfig}
+              onPageNavigate={(path, title) => {
+                if (visitorTrackerRef.current) {
+                  visitorTrackerRef.current.trackNavigation(path, title);
+                }
+              }}
+            />
 
             {/* Floating Live Chat Widget */}
             <CustomerChatWidget

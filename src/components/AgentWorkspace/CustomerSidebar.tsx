@@ -234,7 +234,9 @@ export const CustomerSidebar: React.FC<CustomerSidebarProps> = ({
 
       {/* Live Navigation & Device Metadata */}
       <div className="space-y-2.5">
-        <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider text-slate-400">ভিজিটর সংক্রান্ত তথ্য</h4>
+        <div className="flex items-center justify-between">
+          <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider text-slate-400">ভিজিটর ও নেভিগেশন তথ্য</h4>
+        </div>
         
         <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-600">
           <div className="flex items-center gap-2">
@@ -252,12 +254,40 @@ export const CustomerSidebar: React.FC<CustomerSidebarProps> = ({
             <span className="font-medium text-slate-800">{chat.customer.location || 'ঢাকা, বাংলাদেশ'}</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <a href="#" className="text-blue-600 hover:underline truncate">
-              {chat.customer.currentPageUrl || 'https://mywebsite.bd'}
-            </a>
-          </div>
+          {/* Chat Initiation Point Callout */}
+          {chat.customer.chatInitiatedPage && (
+            <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-[11px] text-amber-900">
+              <div className="font-bold flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                <span>চ্যাট শুরু করার পৃষ্ঠা:</span>
+              </div>
+              <div className="font-mono font-bold text-amber-950 mt-0.5">{chat.customer.chatInitiatedPage}</div>
+            </div>
+          )}
+
+          {/* Path History Breadcrumb */}
+          {chat.customer.pathHistory && chat.customer.pathHistory.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                নেভিগেশন জার্নি ({chat.customer.pathHistory.length}টি পেজ):
+              </div>
+              <div className="space-y-1">
+                {chat.customer.pathHistory.slice(-5).map((step, idx) => (
+                  <div
+                    key={step.id || idx}
+                    className={`p-1.5 rounded-md text-[10px] font-mono border flex items-center justify-between ${
+                      step.isChatEntry || step.path === chat.customer.chatInitiatedPage
+                        ? 'bg-amber-100/70 border-amber-300 text-amber-900 font-bold'
+                        : 'bg-white border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <span className="truncate">{step.path}</span>
+                    <span className="text-[9px] text-slate-500 shrink-0 font-sans">{step.timeSpent || '১ মিনিট'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <Laptop className="w-3.5 h-3.5 text-slate-400 shrink-0" />

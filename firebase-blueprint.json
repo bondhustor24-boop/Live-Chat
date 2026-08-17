@@ -66,7 +66,10 @@
         "referrer": { "type": "string", "description": "Traffic source or referrer URL" },
         "status": { "type": "string", "description": "browsing, in_chat, or invited" },
         "visitedAt": { "type": "string", "description": "Initial visit timestamp" },
-        "lastActive": { "type": "number", "description": "Epoch timestamp of last activity heartbeat" }
+        "lastActive": { "type": "number", "description": "Epoch timestamp of last activity heartbeat" },
+        "pathHistory": { "type": "array", "description": "Full chronological navigation path and pages visited by user" },
+        "chatInitiatedPage": { "type": "string", "description": "Exact page URL or title where chat was initiated" },
+        "chatInitiatedAt": { "type": "string", "description": "Timestamp when chat was opened or initiated" }
       },
       "required": ["id", "location", "device", "status"]
     }
