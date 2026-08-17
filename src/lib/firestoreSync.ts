@@ -64,6 +64,7 @@ const ADMIN_USERS_COL = 'admin_users';
 const VISITORS_COL = 'visitors';
 const VISITOR_LOGS_COL = 'visitor_logs';
 const VISITOR_STATS_COL = 'visitor_stats';
+const DEVICE_NOTIFICATIONS_COL = 'device_notifications';
 
 export interface AdminAccount {
   id: string;
@@ -469,6 +470,17 @@ export async function syncVisitorStatsSummaryToFirestore(summary: any) {
   }
 }
 
+// Send Device Notification to Firestore
+export async function sendDeviceNotificationToFirestore(notification: any) {
+  if (!notification || !notification.id) return;
+  try {
+    const notifRef = doc(db, DEVICE_NOTIFICATIONS_COL, notification.id);
+    await setDoc(notifRef, JSON.parse(JSON.stringify(notification)), { merge: true });
+  } catch (err) {
+    console.warn(`Firestore sync error for device notification ${notification.id}:`, err);
+  }
+}
+
 // Fetch all initial data from Firestore
 export async function loadFirestoreData() {
   try {
@@ -477,6 +489,7 @@ export async function loadFirestoreData() {
     const settingsSnap = await getDocs(collection(db, SETTINGS_COL));
     const blockedSnap = await getDocs(collection(db, BLOCKED_COL));
     const visitorsSnap = await getDocs(collection(db, VISITORS_COL));
+    const visitorLogsSnap = await getDocs(collection(db, VISITOR_LOGS_COL));
 
     const loadedChats: any[] = [];
     chatsSnap.forEach((docSnap) => {
@@ -523,12 +536,18 @@ export async function loadFirestoreData() {
       }
     });
 
+    const loadedVisitorLogs: any[] = [];
+    visitorLogsSnap.forEach((docSnap) => {
+      loadedVisitorLogs.push(docSnap.data());
+    });
+
     return {
       chats: loadedChats,
       messages: loadedMessages,
       widgetConfig: loadedConfig,
       blockedUsers: loadedBlocked,
       visitors: loadedVisitors,
+      visitorLogs: loadedVisitorLogs,
     };
   } catch (err) {
     console.error('Error loading data from Firestore:', err);
@@ -542,13 +561,15 @@ export function setupFirestoreRealtimeListeners(
   onMessagesUpdate: (messagesMap: Record<string, any[]>) => void,
   onTypingUpdate?: (chatId: string, senderRole: 'customer' | 'agent', isTyping: boolean, senderName?: string) => void,
   onBlockedUsersUpdate?: (blockedUsers: any[]) => void,
-  onVisitorsUpdate?: (visitors: any[]) => void
+  onVisitorsUpdate?: (visitors: any[]) => void,
+  onDeviceNotificationReceived?: (notification: any) => void
 ) {
   let unsubscribeChats: (() => void) | null = null;
   let unsubscribeMessages: (() => void) | null = null;
   let unsubscribeTyping: (() => void) | null = null;
   let unsubscribeBlocked: (() => void) | null = null;
   let unsubscribeVisitors: (() => void) | null = null;
+  let unsubscribeNotifications: (() => void) | null = null;
 
   const listenChats = () => {
     try {
@@ -707,9 +728,45 @@ export function setupFirestoreRealtimeListeners(
     }
   };
 
+  const listenNotifications = () => {
+    if (!onDeviceNotificationReceived) return;
+    try {
+      if (unsubscribeNotifications) {
+        try { unsubscribeNotifications(); } catch (e) {}
+      }
+      unsubscribeNotifications = onSnapshot(
+        collection(db, DEVICE_NOTIFICATIONS_COL),
+        (snapshot) => {
+          const now = Date.now();
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added' || change.type === 'modified') {
+              const notif: any = change.doc.data();
+              // Process notifications created within the last 2 minutes
+              if (notif && notif.createdAt) {
+                const createdTime = new Date(notif.createdAt).getTime();
+                if (now - createdTime < 2 * 60 * 1000) {
+                  onDeviceNotificationReceived(notif);
+                }
+              }
+            }
+          });
+        },
+        (error) => {
+          console.log('Firestore notifications listener idle/reconnect event:', error.message || error);
+          setTimeout(() => {
+            listenNotifications();
+          }, 2000);
+        }
+      );
+    } catch (e) {
+      console.warn('Error initiating notifications listener:', e);
+    }
+  };
+
   listenChats();
   listenMessages();
   listenTyping();
   listenBlocked();
   listenVisitors();
+  listenNotifications();
 }

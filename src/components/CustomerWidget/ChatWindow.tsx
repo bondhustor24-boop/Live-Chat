@@ -322,9 +322,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 Chat ID: <strong>#{chat.id}</strong>
               </span>
               <span>•</span>
-              <span className="capitalize text-emerald-300 font-medium">
-                {chat.status === 'active' ? 'অনলাইন (Online)' : 'অপেক্ষমাণ'}
-              </span>
+              {isTypingAgent ? (
+                <span className="text-amber-200 font-bold animate-pulse flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping inline-block" />
+                  {isTypingAgent} লিখছেন...
+                </span>
+              ) : (
+                <span className="capitalize text-emerald-300 font-medium">
+                  {chat.status === 'active' ? 'অনলাইন (Online)' : 'অপেক্ষমাণ'}
+                </span>
+              )}
               {chat.adminSeen && (
                 <>
                   <span>•</span>
@@ -522,13 +529,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {/* Typing indicator */}
         {isTypingAgent && (
-          <div className="flex items-center gap-2 text-slate-400 text-[11px] font-medium pl-2">
-            <div className="flex gap-1">
-              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" />
-              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:0.2s]" />
-              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+          <div className="flex items-center gap-2.5 py-1.5 px-3 bg-white text-slate-700 rounded-2xl rounded-bl-xs w-fit max-w-[85%] border border-slate-200 shadow-2xs animate-in fade-in slide-in-from-bottom-2">
+            <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+              <div className="flex gap-0.5 items-center">
+                <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce" />
+                <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce [animation-delay:0.2s]" />
+                <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce [animation-delay:0.4s]" />
+              </div>
             </div>
-            <span>{isTypingAgent} লিখছেন...</span>
+            <span className="text-xs font-semibold text-blue-800">
+              {isTypingAgent} মেসেজ টাইপ করছেন...
+            </span>
           </div>
         )}
 

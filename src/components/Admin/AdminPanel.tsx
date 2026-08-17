@@ -84,6 +84,7 @@ import {
   syncAdminUserToFirestore,
   deleteAdminUserFromFirestore,
   markChatAsSeenByAdminInFirestore,
+  loadVisitorLogsFromFirestore,
   AdminAccount
 } from '../../lib/firestoreSync';
 import {
@@ -99,6 +100,7 @@ import { NoticeHeaderBar } from '../CustomerWidget/NoticeHeaderBar';
 import { SpinnerSetupModal, SpinnerConfig } from './SpinnerSetupModal';
 import { WorldMapVisualization } from '../AgentWorkspace/WorldMapVisualization';
 import { VisitorAnalyticsDashboard } from './VisitorAnalyticsDashboard';
+import { DeviceNotificationManager } from './DeviceNotificationManager';
 
 interface AdminPanelProps {
   agents: Agent[];
@@ -217,7 +219,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   // Active Admin Sub-tab
-  const [adminTab, setAdminTab] = useState<'overview' | 'live_chat' | 'visitors' | 'agents' | 'codegs' | 'blocked_users' | 'admin_users' | 'settings' | 'promotion' | 'spinners' | 'telegram' | 'notice'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'live_chat' | 'visitors' | 'device_notifications' | 'agents' | 'codegs' | 'blocked_users' | 'admin_users' | 'settings' | 'promotion' | 'spinners' | 'telegram' | 'notice'>('overview');
   const [isSpinnerModalOpen, setIsSpinnerModalOpen] = useState(false);
 
   // Website Promotion State (Multi-site)
@@ -846,6 +848,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <Globe className="w-3 h-3 text-emerald-500 shrink-0" />
             <span>🌐 লাইভ ভিজিটর ({allLiveVisitors.length})</span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+          </button>
+
+          <button
+            onClick={() => setAdminTab('device_notifications')}
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition shrink-0 ${
+              adminTab === 'device_notifications'
+                ? 'bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 text-white shadow-xs font-bold'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Bell className="w-3 h-3 text-indigo-500 shrink-0 animate-bounce" />
+            <span>📱 ডিভাইস পুশ নোটিফিকেশন</span>
+            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700">
+              Live
+            </span>
           </button>
 
           <button
@@ -4474,6 +4491,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </form>
             </div>
+          </div>
+        )}
+
+        {/* TAB: DEVICE NOTIFICATIONS (CROSS-DEVICE PUSH & AUDIO ALERTS) */}
+        {adminTab === 'device_notifications' && (
+          <div className="animate-in fade-in space-y-6">
+            <DeviceNotificationManager
+              liveVisitors={allLiveVisitors}
+              chats={chats}
+              onNotificationSent={(notif) => {
+                // Optional callback
+              }}
+            />
           </div>
         )}
 

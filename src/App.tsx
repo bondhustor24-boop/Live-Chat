@@ -11,6 +11,7 @@ import { CannedResponsesTab } from './components/AgentWorkspace/CannedResponsesT
 import { WidgetSettings } from './components/Settings/WidgetSettings';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { CodeGsModal } from './components/Admin/CodeGsModal';
+import { DeviceNotificationToast } from './components/CustomerWidget/DeviceNotificationToast';
 import { ShieldCheck, Lock, KeyRound, X, User, Bell, RefreshCw } from 'lucide-react';
 import {
   ChatSession,
@@ -19,7 +20,8 @@ import {
   CannedResponse,
   LiveVisitor,
   WidgetConfig,
-  BlockedUser
+  BlockedUser,
+  DeviceNotification
 } from './types';
 import {
   INITIAL_AGENTS,
@@ -176,6 +178,7 @@ export default function App() {
     return false;
   });
   const [toastNotification, setToastNotification] = useState<{ id: string; sender: string; text: string } | null>(null);
+  const [activeDeviceNotification, setActiveDeviceNotification] = useState<DeviceNotification | null>(null);
 
   // Core Data State
   const [chats, setChats] = useState<ChatSession[]>(() => {
@@ -224,6 +227,12 @@ export default function App() {
     }
     return null;
   });
+
+  const customerChatIdRef = useRef(customerChatId);
+  customerChatIdRef.current = customerChatId;
+
+  const selectedChatIdRef = useRef(selectedChatId);
+  selectedChatIdRef.current = selectedChatId;
 
   useEffect(() => {
     if (customerChatId) {
@@ -414,12 +423,12 @@ export default function App() {
       },
       (chatId, senderRole, isTyping, senderName) => {
         if (senderRole === 'customer') {
-          if (chatId === selectedChatId) {
+          if (chatId === selectedChatIdRef.current) {
             setIsCustomerTyping(isTyping);
           }
         } else {
-          if (chatId === customerChatId) {
-            setIsTypingAgent(isTyping ? (senderName || 'এজেন্ট') : null);
+          if (chatId === customerChatIdRef.current) {
+            setIsTypingAgent(isTyping ? (senderName || 'এডমিন সাপোর্ট') : null);
           }
         }
       },
@@ -431,6 +440,11 @@ export default function App() {
       (firestoreVisitors) => {
         if (firestoreVisitors) {
           setLiveVisitors(firestoreVisitors);
+        }
+      },
+      (firestoreNotif) => {
+        if (firestoreNotif) {
+          setActiveDeviceNotification(firestoreNotif);
         }
       }
     );
@@ -861,9 +875,13 @@ export default function App() {
 
             case 'typing_status': {
               if (parsed.senderRole === 'customer') {
-                setIsCustomerTyping(parsed.isTyping);
+                if (parsed.chatId === selectedChatIdRef.current) {
+                  setIsCustomerTyping(parsed.isTyping);
+                }
               } else {
-                setIsTypingAgent(parsed.isTyping ? parsed.senderName : null);
+                if (parsed.chatId === customerChatIdRef.current) {
+                  setIsTypingAgent(parsed.isTyping ? (parsed.senderName || 'এডমিন সাপোর্ট') : null);
+                }
               }
               break;
             }
@@ -881,6 +899,13 @@ export default function App() {
             case 'visitors_updated': {
               if (parsed.visitors && Array.isArray(parsed.visitors)) {
                 setLiveVisitors(parsed.visitors);
+              }
+              break;
+            }
+
+            case 'device_notification': {
+              if (parsed.notification) {
+                setActiveDeviceNotification(parsed.notification);
               }
               break;
             }
@@ -2071,6 +2096,15 @@ export default function App() {
         isOpen={isCodeGsModalOpen}
         onClose={() => setIsCodeGsModalOpen(false)}
         webAppUrl={widgetConfig.appsScriptUrl}
+      />
+
+      {/* Real-time Admin-to-User Device Notification Toast & Banner */}
+      <DeviceNotificationToast
+        notification={activeDeviceNotification}
+        onDismiss={() => setActiveDeviceNotification(null)}
+        onOpenChat={() => {
+          setActiveTab('widget_preview');
+        }}
       />
     </div>
   );

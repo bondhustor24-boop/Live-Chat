@@ -12,7 +12,7 @@ import {
   INITIAL_LIVE_VISITORS,
   INITIAL_WIDGET_CONFIG
 } from './src/data/mockData.js';
-import { ChatSession, ChatMessage, Agent, CannedResponse, LiveVisitor, WidgetConfig, BlockedUser, AdminUser, VisitorLogEntry } from './src/types.js';
+import { ChatSession, ChatMessage, Agent, CannedResponse, LiveVisitor, WidgetConfig, BlockedUser, AdminUser, VisitorLogEntry, DeviceNotification } from './src/types.js';
 import {
   syncChatToFirestore,
   deleteChatFromFirestore,
@@ -21,6 +21,7 @@ import {
   syncVisitorToFirestore,
   deleteVisitorFromFirestore,
   syncVisitorLogToFirestore,
+  sendDeviceNotificationToFirestore,
   loadFirestoreData,
   setupFirestoreRealtimeListeners
 } from './src/lib/firestoreSync.js';
@@ -57,6 +58,7 @@ let agents: Agent[] = [...INITIAL_AGENTS];
 let cannedResponses: CannedResponse[] = [...INITIAL_CANNED_RESPONSES];
 let liveVisitors: LiveVisitor[] = [...INITIAL_LIVE_VISITORS];
 let visitorLogs: VisitorLogEntry[] = generateInitialVisitorLogs();
+let recentDeviceNotifications: DeviceNotification[] = [];
 let widgetConfig: WidgetConfig = { ...INITIAL_WIDGET_CONFIG };
 let blockedUsers: BlockedUser[] = [];
 let adminUsers: AdminUser[] = [
@@ -471,16 +473,13 @@ wss.on('connection', (ws: ClientSocket) => {
         }
 
         case 'typing': {
-          broadcast(
-            {
-              type: 'typing_status',
-              chatId: parsed.chatId,
-              senderName: parsed.senderName,
-              senderRole: parsed.senderRole,
-              isTyping: parsed.isTyping,
-            },
-            (c) => c.chatId === parsed.chatId || c.role === 'agent'
-          );
+          broadcast({
+            type: 'typing_status',
+            chatId: parsed.chatId,
+            senderName: parsed.senderName,
+            senderRole: parsed.senderRole,
+            isTyping: parsed.isTyping,
+          });
           break;
         }
 
@@ -541,6 +540,20 @@ wss.on('connection', (ws: ClientSocket) => {
             broadcast({
               type: 'agent_status_updated',
               agents,
+            });
+          }
+          break;
+        }
+
+        case 'send_device_notification': {
+          const notifPayload = parsed.notification;
+          if (notifPayload) {
+            recentDeviceNotifications.unshift(notifPayload);
+            if (recentDeviceNotifications.length > 50) recentDeviceNotifications.pop();
+            sendDeviceNotificationToFirestore(notifPayload);
+            broadcast({
+              type: 'device_notification',
+              notification: notifPayload,
             });
           }
           break;
@@ -1376,6 +1389,74 @@ app.post('/api/analytics/clear-demo', async (req, res) => {
   }
 });
 
+// POST Send Notification Directly to User Devices
+app.post('/api/notifications/send-to-device', async (req, res) => {
+  try {
+    const {
+      title,
+      body,
+      targetType = 'all',
+      targetVisitorId,
+      targetChatId,
+      actionUrl,
+      actionType = 'open_chat',
+      soundEnabled = true,
+      priority = 'high',
+      senderName = 'এডমিন সাপোর্ট',
+    } = req.body;
+
+    if (!title || !body) {
+      return res.status(400).json({ error: 'Notification title and body are required' });
+    }
+
+    const notification: DeviceNotification = {
+      id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      targetType,
+      targetVisitorId,
+      targetChatId,
+      title: title.trim(),
+      body: body.trim(),
+      actionUrl: actionUrl || '',
+      actionType,
+      soundEnabled: Boolean(soundEnabled),
+      priority,
+      createdAt: new Date().toISOString(),
+      senderName,
+    };
+
+    recentDeviceNotifications.unshift(notification);
+    if (recentDeviceNotifications.length > 50) {
+      recentDeviceNotifications.pop();
+    }
+
+    // Sync to Firestore for real-time cross-device delivery
+    await sendDeviceNotificationToFirestore(notification);
+
+    // Broadcast over WebSocket for instant delivery to connected user devices
+    broadcast({
+      type: 'device_notification',
+      notification,
+    });
+
+    res.json({
+      success: true,
+      message: 'ইউজারের ডিভাইসে নোটিফিকেশন সফলভাবে পাঠানো হয়েছে!',
+      notification,
+    });
+  } catch (err: any) {
+    console.error('Error sending device notification:', err);
+    res.status(500).json({ error: err.message || 'Failed to send device notification' });
+  }
+});
+
+// GET Recent Device Notifications
+app.get('/api/notifications/recent', (req, res) => {
+  res.json({
+    success: true,
+    notifications: recentDeviceNotifications,
+  });
+});
+
 // POST Clear All Visitor Logs
 app.post('/api/analytics/clear-logs', (req, res) => {
   visitorLogs = [];
@@ -1827,6 +1908,10 @@ async function startServer() {
     if (loadedData && loadedData.chats && loadedData.chats.length > 0) {
       chats = loadedData.chats;
       messages = loadedData.messages || {};
+      if (loadedData.visitorLogs && Array.isArray(loadedData.visitorLogs) && loadedData.visitorLogs.length > 0) {
+        visitorLogs = loadedData.visitorLogs;
+        console.log(`✅ Restored ${visitorLogs.length} historical visitor logs from Firebase Firestore!`);
+      }
       if (loadedData.widgetConfig) widgetConfig = { ...widgetConfig, ...loadedData.widgetConfig };
       widgetConfig.websiteUrl = 'https://live-chat-swart-nine.vercel.app/';
       await syncWidgetConfigToFirestore(widgetConfig);

@@ -61,10 +61,31 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
   const [attachments, setAttachments] = useState<any[]>([]);
   const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isCustomerTyping]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      onTyping(false);
+    };
+  }, [chat?.id]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputText(val);
+
+    if (!isInternalNote) {
+      onTyping(true);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        onTyping(false);
+      }, 2500);
+    }
+  };
 
   if (!chat) {
     return (
@@ -83,6 +104,7 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() && attachments.length === 0) return;
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     onSendMessage(inputText, isInternalNote, attachments.length > 0 ? attachments : undefined);
     setInputText('');
     setAttachments([]);
@@ -636,7 +658,7 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
           <input
             type="text"
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={handleInputChange}
             placeholder={
               isInternalNote
                 ? 'অভ্যন্তরীণ গোপন নোট লিখুন (শুধুমাত্র এজেন্টরা দেখতে পাবে)...'

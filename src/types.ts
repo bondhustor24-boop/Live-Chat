@@ -223,6 +223,22 @@ export interface LiveVisitor {
   chatInitiatedAt?: string;
 }
 
+export interface DeviceNotification {
+  id: string;
+  targetType: 'all' | 'specific_visitor' | 'specific_chat';
+  targetVisitorId?: string;
+  targetChatId?: string;
+  title: string;
+  body: string;
+  icon?: string;
+  actionUrl?: string;
+  actionType?: 'open_chat' | 'open_url' | 'none';
+  soundEnabled?: boolean;
+  priority?: 'normal' | 'high' | 'urgent';
+  createdAt: string;
+  senderName?: string;
+}
+
 export interface PromoBanner {
   id?: string;
   enabled: boolean;
