@@ -1240,7 +1240,8 @@ export default function App() {
       content: displayMsg,
       attachments,
       timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
-      readStatus: 'delivered',
+      readStatus: 'sending',
+      isSending: true,
     };
 
     setMessages((prev) => ({
@@ -1306,9 +1307,18 @@ export default function App() {
         await fetch(`/api/chats/${encodeURIComponent(activeChatId)}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newMsg),
+          body: JSON.stringify({ ...newMsg, readStatus: 'delivered', isSending: false }),
         });
       }
+
+      setTimeout(() => {
+        setMessages((prev) => ({
+          ...prev,
+          [activeChatId]: (prev[activeChatId] || []).map((m) =>
+            m.id === msgId ? { ...m, readStatus: 'delivered', isSending: false } : m
+          ),
+        }));
+      }, 350);
     } catch (e) {
       console.warn('Message send network warning:', e);
     }

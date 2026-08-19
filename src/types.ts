@@ -39,7 +39,8 @@ export interface ChatMessage {
     size?: string;
   }[];
   quickReplies?: string[];
-  readStatus?: 'sent' | 'delivered' | 'read';
+  readStatus?: 'sending' | 'sent' | 'delivered' | 'read';
+  isSending?: boolean;
   seenAt?: string;
   seenBy?: string;
   createdAt?: string;

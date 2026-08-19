@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2, ClipboardList, ExternalLink, AlertCircle, CheckCircle2, Megaphone, ChevronLeft, ChevronRight, MessageSquarePlus, Lock } from 'lucide-react';
+import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2, ClipboardList, ExternalLink, AlertCircle, CheckCircle2, Megaphone, ChevronLeft, ChevronRight, MessageSquarePlus, Lock, Loader2 } from 'lucide-react';
 import { ChatSession, ChatMessage, WidgetConfig } from '../../types';
 import { sendTelegramNotification } from '../../lib/telegramNotify';
 
@@ -57,15 +57,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const isChatClosed = chat.status === 'resolved' || chat.status === 'closed' || (chat as any).isClosed;
   const isSendingRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isChatClosed || chat.isBlocked || isSendingRef.current) return;
+    if (isChatClosed || chat.isBlocked || isSendingRef.current || isSubmitting) return;
     const textToSend = inputText.trim();
     const attachToSend = attachments.length > 0 ? attachments : undefined;
     if (!textToSend && (!attachToSend || attachToSend.length === 0)) return;
 
     isSendingRef.current = true;
+    setIsSubmitting(true);
     setInputText('');
     setAttachments([]);
     setShowEmojiPicker(false);
@@ -75,7 +77,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
     setTimeout(() => {
       isSendingRef.current = false;
-    }, 400);
+      setIsSubmitting(false);
+    }, 600);
   };
 
   const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
@@ -416,6 +419,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           return displayMessages.map((msg, idx) => {
             const isCustomer = msg.senderRole === 'customer';
             const isSystem = msg.senderRole === 'system';
+            const isSending = isCustomer && (msg.readStatus === 'sending' || msg.isSending);
 
             if (isSystem) {
               return (
@@ -440,23 +444,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
                 <div className={`max-w-[80%] space-y-1 ${isCustomer ? 'items-end' : 'items-start'}`}>
                   
-                  {/* Sender Label (Upper Seen badge removed to eliminate redundancy) */}
-                  <div className={`flex items-center gap-1 text-[10px] text-slate-400 px-1 ${isCustomer ? 'justify-end' : 'justify-start'}`}>
+                  {/* Sender Label & Live Transit Status */}
+                  <div className={`flex items-center gap-1.5 text-[10px] text-slate-400 px-1 ${isCustomer ? 'justify-end' : 'justify-start'}`}>
                     <span>{msg.senderName}</span>
                     <span>•</span>
                     <span>{msg.timestamp}</span>
+                    {isSending && (
+                      <span className="text-[9px] text-blue-500 font-medium animate-pulse inline-flex items-center gap-0.5 ml-0.5">
+                        <Loader2 className="w-2.5 h-2.5 animate-spin text-blue-500" />
+                        সেন্ডিং...
+                      </span>
+                    )}
                   </div>
 
-                  {/* Message Bubble */}
+                  {/* Message Bubble with Visual In-Transit Indicator */}
                   <div
                     style={
                       isCustomer
                         ? { backgroundColor: widgetConfig.primaryColor, color: '#ffffff' }
                         : { backgroundColor: '#ffffff', color: '#0f172a' }
                     }
-                    className={`p-3 rounded-2xl shadow-xs leading-relaxed border ${
+                    className={`p-3 rounded-2xl shadow-xs leading-relaxed border transition-all duration-200 ${
                       isCustomer
-                        ? 'rounded-br-xs border-transparent'
+                        ? isSending
+                          ? 'rounded-br-xs border-blue-300/40 opacity-75 ring-2 ring-blue-400/30'
+                          : 'rounded-br-xs border-transparent opacity-100'
                         : 'rounded-bl-xs border-slate-200/80 text-slate-800'
                     }`}
                   >
@@ -481,10 +493,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     )}
                   </div>
 
-                  {/* Under customer message bubble: Seen badge */}
+                  {/* Under customer message bubble: Sending / Delivered / Seen badge */}
                   {isCustomer && (
                     <div className="flex items-center justify-end gap-1 pt-0.5 text-[10px] font-semibold">
-                      {msg.readStatus === 'read' || chat.adminSeen ? (
+                      {isSending ? (
+                        <div className="flex items-center gap-1 text-blue-600 bg-blue-50/90 px-1.5 py-0.5 rounded border border-blue-200/60 shadow-2xs animate-pulse">
+                          <Loader2 className="w-3 h-3 text-blue-500 animate-spin" />
+                          <span className="text-[9px] font-medium text-blue-600">পাঠানো হচ্ছে...</span>
+                        </div>
+                      ) : msg.readStatus === 'read' || chat.adminSeen ? (
                         <div className="flex items-center gap-1 text-blue-600 bg-blue-50/80 px-1.5 py-0.5 rounded border border-blue-200/60 shadow-2xs animate-in fade-in">
                           <CheckCheck className="w-3.5 h-3.5 text-blue-600 stroke-[2.5]" />
                           <span>Seen</span>
@@ -632,22 +649,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             type="text"
             value={inputText}
             onChange={handleInputChange}
+            disabled={isSubmitting}
             inputMode="text"
             autoCapitalize="sentences"
             enterKeyHint="send"
             autoComplete="off"
-            placeholder="আপনার মেসেজটি লিখুন..."
-            className="flex-1 text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition touch-manipulation"
+            placeholder={isSubmitting ? "মেসেজ পাঠানো হচ্ছে..." : "আপনার মেসেজটি লিখুন..."}
+            className="flex-1 text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition touch-manipulation disabled:opacity-60"
           />
 
           <button
             type="submit"
-            disabled={!inputText.trim() && attachments.length === 0}
+            disabled={isSubmitting || (!inputText.trim() && attachments.length === 0)}
             style={{ backgroundColor: widgetConfig.primaryColor }}
             className="min-w-[42px] min-h-[42px] p-2.5 text-white rounded-xl shadow-xs hover:opacity-90 active:scale-95 transition flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
-            title="মেসেজ পাঠান"
+            title={isSubmitting ? "মেসেজ পাঠানো হচ্ছে..." : "মেসেজ পাঠান"}
           >
-            <Send className="w-4 h-4" />
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
           </button>
         </div>
       </form>
