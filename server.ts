@@ -405,15 +405,16 @@ wss.on('connection', (ws: ClientSocket) => {
             return;
           }
 
+          const clientMsgId = parsed.id || parsed.message?.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9));
           const newMessage: ChatMessage = {
-            id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
+            id: clientMsgId,
             chatId,
             senderRole,
             senderName,
             senderAvatar,
-            content,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            createdAt: new Date().toISOString(),
+            content: (content || '').trim(),
+            timestamp: parsed.timestamp || new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
+            createdAt: parsed.createdAt || new Date().toISOString(),
             isInternalNote: !!isInternalNote,
             attachments,
             readStatus: 'delivered',
@@ -422,14 +423,15 @@ wss.on('connection', (ws: ClientSocket) => {
           if (!messages[chatId]) {
             messages[chatId] = [];
           }
-          const isDuplicateMsg = messages[chatId].some(
+          const existingIdx = messages[chatId].findIndex(
             (m) =>
-              m.id === newMessage.id ||
+              (m.id && m.id === newMessage.id) ||
               (m.senderRole === newMessage.senderRole &&
-                (m.content || '').trim() === (newMessage.content || '').trim() &&
-                m.timestamp === newMessage.timestamp)
+                (m.content || '').trim() === (newMessage.content || '').trim())
           );
-          if (!isDuplicateMsg) {
+          if (existingIdx >= 0) {
+            messages[chatId][existingIdx] = { ...messages[chatId][existingIdx], ...newMessage };
+          } else {
             messages[chatId].push(newMessage);
           }
 

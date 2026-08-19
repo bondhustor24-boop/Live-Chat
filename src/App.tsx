@@ -829,11 +829,21 @@ export default function App() {
                   const list = prev[chatId] || [];
                   const exists = list.some(
                     (m) =>
-                      m.id === message.id ||
-                      (m.content === message.content && m.senderRole === message.senderRole && Math.abs(new Date(m.timestamp).getTime() - new Date(message.timestamp).getTime()) < 5000)
+                      (m.id && message.id && m.id === message.id) ||
+                      (m.senderRole === message.senderRole &&
+                        (m.content || '').trim() === (message.content || '').trim())
                   );
                   if (exists) {
-                    return prev;
+                    return {
+                      ...prev,
+                      [chatId]: list.map((m) =>
+                        (m.id && message.id && m.id === message.id) ||
+                        (m.senderRole === message.senderRole &&
+                          (m.content || '').trim() === (message.content || '').trim())
+                          ? { ...m, ...message }
+                          : m
+                      ),
+                    };
                   }
                   return {
                     ...prev,
@@ -1281,11 +1291,14 @@ export default function App() {
         wsRef.current.send(
           JSON.stringify({
             type: 'message',
+            id: newMsg.id,
             chatId: activeChatId,
             senderRole: 'customer',
             senderName: newMsg.senderName,
             senderAvatar: newMsg.senderAvatar,
-            content: text,
+            content: newMsg.content,
+            timestamp: newMsg.timestamp,
+            createdAt: newMsg.createdAt,
             attachments,
           })
         );
@@ -1511,25 +1524,31 @@ export default function App() {
     syncMessageToFirestore(newMsg);
 
     try {
-      await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMsg),
-      });
-    } catch (e) {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(
           JSON.stringify({
             type: 'message',
+            id: newMsg.id,
             chatId: selectedChatId,
             senderRole: 'agent',
             senderName: activeAgent.name,
             senderAvatar: activeAgent.avatar,
-            content: text,
+            content: newMsg.content,
+            timestamp: newMsg.timestamp,
+            createdAt: newMsg.createdAt,
             isInternalNote,
+            attachments,
           })
         );
+      } else {
+        await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newMsg),
+        });
       }
+    } catch (e) {
+      console.warn('Agent message send warning:', e);
     }
 
     if (currentChat) {

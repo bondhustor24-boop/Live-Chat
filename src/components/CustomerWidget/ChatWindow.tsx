@@ -56,16 +56,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   const isChatClosed = chat.status === 'resolved' || chat.status === 'closed' || (chat as any).isClosed;
+  const isSendingRef = useRef(false);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isChatClosed || chat.isBlocked) return;
-    if (!inputText.trim() && attachments.length === 0) return;
-    onSendMessage(inputText, attachments.length > 0 ? attachments : undefined);
+    if (isChatClosed || chat.isBlocked || isSendingRef.current) return;
+    const textToSend = inputText.trim();
+    const attachToSend = attachments.length > 0 ? attachments : undefined;
+    if (!textToSend && (!attachToSend || attachToSend.length === 0)) return;
+
+    isSendingRef.current = true;
     setInputText('');
     setAttachments([]);
     setShowEmojiPicker(false);
     onTyping(false);
+
+    onSendMessage(textToSend, attachToSend);
+
+    setTimeout(() => {
+      isSendingRef.current = false;
+    }, 400);
   };
 
   const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
@@ -389,13 +399,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           for (const m of messages) {
             if (!m || m.isInternalNote) continue;
             const idKey = m.id ? String(m.id).trim() : null;
-            const contentKey = `${m.senderRole || ''}_${(m.content || '').trim()}_${(m.timestamp || '').trim()}`;
+            const contentKey = `${m.senderRole || ''}_${(m.content || '').trim()}`;
 
             if (idKey && seenIds.has(idKey)) {
               continue; // Duplicate id - eliminate
             }
             if (seenContent.has(contentKey)) {
-              continue; // Duplicate content/timestamp - eliminate
+              continue; // Duplicate content with same sender - eliminate
             }
 
             if (idKey) seenIds.add(idKey);

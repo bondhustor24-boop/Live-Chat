@@ -331,7 +331,7 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
           for (const m of messages) {
             if (!m) continue;
             const idKey = m.id ? String(m.id).trim() : null;
-            const contentKey = `${m.senderRole || ''}_${(m.content || '').trim()}_${(m.timestamp || '').trim()}`;
+            const contentKey = `${m.senderRole || ''}_${(m.content || '').trim()}`;
 
             if (idKey && seenIds.has(idKey)) {
               continue;
