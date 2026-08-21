@@ -1776,6 +1776,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               onTimeframeChange={(tf) => setActiveVisitorTimeframe(tf)}
               onRefresh={handleRefreshVisitorStats}
               onInviteToChat={onInviteToChat}
+              appsScriptUrl={widgetConfig?.appsScriptUrl}
+              onOpenCodeGsModal={onOpenCodeGsModal}
             />
 
             {/* Tactical Live Map View */}

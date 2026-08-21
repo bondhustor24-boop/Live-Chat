@@ -203,6 +203,113 @@ async function sendInstantGoogleSheetSync(chat: ChatSession, message: ChatMessag
   }
 }
 
+// Memory cache to prevent excessive redundant sheet pings on 15s heartbeats
+const visitorSheetSyncTracker = new Map<string, { lastSynced: number; lastPage: string; chatInitiated: boolean; phone?: string }>();
+
+// Instant Website Visitor Sync to Google Sheet
+async function sendVisitorGoogleSheetSync(visitor: LiveVisitor | VisitorLogEntry, force = false) {
+  const url = widgetConfig.appsScriptUrl;
+  if (!url || !url.startsWith('http')) return;
+
+  const vId = (visitor as any).visitorId || visitor.id;
+  const now = Date.now();
+  const cached = visitorSheetSyncTracker.get(vId);
+
+  const currentPage = (visitor as any).currentPage || '/';
+  const chatInitiated = Boolean((visitor as any).chatInitiated || (visitor as any).status === 'in_chat');
+  const phone = visitor.phone || '';
+
+  // Only sync if force=true, or new visitor, or page changed, or chat status changed, or phone added, or >3 mins since last sync
+  if (!force && cached) {
+    const isPageChanged = cached.lastPage !== currentPage;
+    const isChatChanged = cached.chatInitiated !== chatInitiated;
+    const isPhoneChanged = (cached.phone || '') !== phone && Boolean(phone);
+    const isTimeExpired = now - cached.lastSynced > 3 * 60 * 1000;
+
+    if (!isPageChanged && !isChatChanged && !isPhoneChanged && !isTimeExpired) {
+      return;
+    }
+  }
+
+  visitorSheetSyncTracker.set(vId, {
+    lastSynced: now,
+    lastPage: currentPage,
+    chatInitiated,
+    phone,
+  });
+
+  try {
+    const payload = {
+      type: 'visitor_log',
+      visitorData: {
+        visitedAt: (visitor as any).visitedAt || (visitor as any).timestamp || new Date().toLocaleString('bn-BD'),
+        visitorId: vId,
+        name: visitor.name || 'অনলাইন ভিজিটর',
+        phone: visitor.phone || '',
+        email: visitor.email || '',
+        ip: visitor.ip || '',
+        location: visitor.location || '',
+        currentPage,
+        pageviewsCount: (visitor as any).pageviewsCount || (visitor as any).pathHistory?.length || 1,
+        timeOnPage: (visitor as any).timeOnPage || (visitor as any).duration || '১ মিনিট',
+        device: visitor.device || '',
+        referrer: visitor.referrer || 'Direct Link',
+        chatInitiated,
+        status: (visitor as any).status || 'browsing',
+      }
+    };
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch((err) => console.error('Google Sheet Visitor Sync fetch error:', err));
+  } catch (e) {
+    console.error('Google Sheet Visitor Sync error:', e);
+  }
+}
+
+// Batch Sync Website Visitors to Google Sheet
+async function sendBatchVisitorsGoogleSheetSync(visitorsList: (LiveVisitor | VisitorLogEntry)[]) {
+  const url = widgetConfig.appsScriptUrl;
+  if (!url || !url.startsWith('http')) return { success: false, error: 'Google Sheet Apps Script URL is not configured' };
+
+  try {
+    const formattedVisitors = visitorsList.map((v) => ({
+      visitedAt: (v as any).visitedAt || (v as any).timestamp || new Date().toLocaleString('bn-BD'),
+      visitorId: (v as any).visitorId || v.id,
+      name: v.name || 'অনলাইন ভিজিটর',
+      phone: v.phone || '',
+      email: v.email || '',
+      ip: v.ip || '',
+      location: v.location || '',
+      currentPage: (v as any).currentPage || '/',
+      pageviewsCount: (v as any).pageviewsCount || (v as any).pathHistory?.length || 1,
+      timeOnPage: (v as any).timeOnPage || (v as any).duration || '',
+      device: v.device || '',
+      referrer: v.referrer || 'Direct Link',
+      chatInitiated: Boolean((v as any).chatInitiated || (v as any).status === 'in_chat'),
+      status: (v as any).status || 'browsing',
+    }));
+
+    const payload = {
+      type: 'visitors_sheet',
+      visitors: formattedVisitors,
+    };
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch((err) => console.error('Google Sheet Batch Visitor Sync fetch error:', err));
+
+    return { success: true, count: formattedVisitors.length };
+  } catch (e: any) {
+    console.error('Google Sheet Batch Visitor Sync error:', e);
+    return { success: false, error: e.message || String(e) };
+  }
+}
+
 // Telegram Bot Notification Helper
 async function sendTelegramNotification(chat: ChatSession, messageContent: string, isNewChat = false) {
   if (widgetConfig.telegramNotificationsEnabled === false) return;
@@ -1542,12 +1649,29 @@ app.post('/api/visitors/ping', (req, res) => {
   syncVisitorToFirestore(updatedVisitor);
   syncVisitorLogToFirestore(logEntry);
 
+  // 📊 Sync Website Visitor to Google Sheet
+  sendVisitorGoogleSheetSync(updatedVisitor);
+
   broadcast({
     type: 'visitors_updated',
     visitors: liveVisitors,
   });
 
   res.json({ success: true, visitor: updatedVisitor });
+});
+
+// POST Batch Sync Visitors to Google Sheet
+app.post('/api/visitors/sync-sheet', async (req, res) => {
+  try {
+    const listToSync = req.body?.visitors || (visitorLogs.length > 0 ? visitorLogs : liveVisitors);
+    if (!listToSync || listToSync.length === 0) {
+      return res.status(400).json({ error: 'কোনো ভিজিটর ডেটা পাওয়া যায়নি।' });
+    }
+    const result = await sendBatchVisitorsGoogleSheetSync(listToSync);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Google Sheet sync failed' });
+  }
 });
 
 // POST Live Visitor Leave

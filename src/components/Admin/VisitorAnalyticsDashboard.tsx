@@ -6,6 +6,7 @@ import {
   VisitorTimeframeFilter,
 } from '../../types';
 import { clearDemoVisitorLogs } from '../../lib/visitorStats';
+import { syncToGoogleSheetDirect } from '../../lib/googleSheets';
 import {
   Users,
   Eye,
@@ -32,6 +33,10 @@ import {
   Sparkles,
   BarChart3,
   Trash2,
+  FileSpreadsheet,
+  CheckCircle2,
+  Loader2,
+  FileCode2,
 } from 'lucide-react';
 
 interface VisitorAnalyticsDashboardProps {
@@ -42,6 +47,8 @@ interface VisitorAnalyticsDashboardProps {
   onTimeframeChange: (tf: VisitorTimeframeFilter) => void;
   onRefresh?: () => void;
   onInviteToChat?: (visitor: LiveVisitor) => void;
+  appsScriptUrl?: string;
+  onOpenCodeGsModal?: () => void;
 }
 
 export const VisitorAnalyticsDashboard: React.FC<VisitorAnalyticsDashboardProps> = ({
@@ -52,16 +59,107 @@ export const VisitorAnalyticsDashboard: React.FC<VisitorAnalyticsDashboardProps>
   onTimeframeChange,
   onRefresh,
   onInviteToChat,
+  appsScriptUrl,
+  onOpenCodeGsModal,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [chatOnlyFilter, setChatOnlyFilter] = useState(false);
   const [copiedPhoneId, setCopiedPhoneId] = useState<string | null>(null);
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+  const [sheetSyncStatus, setSheetSyncStatus] = useState<{ success: boolean; message: string } | null>(null);
 
   // Copy Phone Helper
   const handleCopyPhone = (phone: string, id: string) => {
     navigator.clipboard?.writeText(phone);
     setCopiedPhoneId(id);
     setTimeout(() => setCopiedPhoneId(null), 2000);
+  };
+
+  // Sync visitor list to Google Sheet
+  const handleSyncVisitorsToGoogleSheet = async () => {
+    if (isSyncingSheet) return;
+    setIsSyncingSheet(true);
+    setSheetSyncStatus(null);
+
+    const listToSync = filteredList.length > 0 ? filteredList : (logs.length > 0 ? logs : liveVisitors.map((v) => ({
+      id: v.id,
+      visitorId: v.id,
+      name: v.name || 'অনলাইন ভিজিটর',
+      phone: v.phone || '',
+      email: v.email || '',
+      ip: v.ip || '',
+      location: v.location || '',
+      currentPage: v.currentPage || '/',
+      pageviewsCount: v.pathHistory?.length || 1,
+      visitedAt: v.visitedAt || new Date().toISOString(),
+      date: new Date().toISOString().slice(0, 10),
+      week: 'current',
+      month: new Date().toISOString().slice(0, 7),
+      year: new Date().getFullYear().toString(),
+      timeSpent: v.timeOnPage || '১ মিনিট',
+      chatInitiated: v.status === 'in_chat',
+      device: v.device || 'Web Browser',
+      referrer: v.referrer || 'Direct Link',
+    })));
+
+    try {
+      // 1. Try server endpoint first
+      const res = await fetch('/api/visitors/sync-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visitors: listToSync }),
+      });
+
+      if (res.ok) {
+        setSheetSyncStatus({
+          success: true,
+          message: `${listToSync.length} জন ভিজিটরের তথ্য সফলভাবে গুগল শিটে সেভ হয়েছে!`,
+        });
+      } else {
+        // Fallback to client-side direct sync if available
+        if (appsScriptUrl) {
+          const directOk = await syncToGoogleSheetDirect(appsScriptUrl, {
+            type: 'visitors_sheet',
+            visitors: listToSync.map((v) => ({
+              visitedAt: v.visitedAt || new Date().toLocaleString('bn-BD'),
+              visitorId: v.visitorId || v.id,
+              name: v.name || 'অনলাইন ভিজিটর',
+              phone: v.phone || '',
+              email: v.email || '',
+              ip: v.ip || '',
+              location: v.location || '',
+              currentPage: v.currentPage || '/',
+              pageviewsCount: v.pageviewsCount || 1,
+              timeOnPage: v.timeSpent || '',
+              device: v.device || '',
+              referrer: v.referrer || 'Direct Link',
+              chatInitiated: Boolean(v.chatInitiated),
+            })),
+          });
+
+          if (directOk) {
+            setSheetSyncStatus({
+              success: true,
+              message: `${listToSync.length} জন ভিজিটরের তথ্য গুগল শিটে সিঙ্ক হয়েছে!`,
+            });
+          } else {
+            throw new Error('গুগল শিট স্ক্রিপ্টে রিকোয়েস্ট পাঠানো যায়নি।');
+          }
+        } else {
+          throw new Error('গুগল শিট স্ক্রিপ্ট ইউআরএল কনফিগার করা নেই।');
+        }
+      }
+    } catch (err: any) {
+      setSheetSyncStatus({
+        success: false,
+        message: err.message || 'গুগল শিটে সেভ করতে সমস্যা হয়েছে।',
+      });
+    } finally {
+      setIsSyncingSheet(false);
+      setTimeout(() => {
+        setSheetSyncStatus(null);
+      }, 5000);
+    }
   };
 
   // Export filtered logs to CSV
@@ -524,7 +622,33 @@ export const VisitorAnalyticsDashboard: React.FC<VisitorAnalyticsDashboardProps>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+        <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
+          {/* Google Sheet Sync Button */}
+          <button
+            onClick={handleSyncVisitorsToGoogleSheet}
+            disabled={isSyncingSheet}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+            title="বর্তমান ভিজিটর তালিকা গুগল শিটে সেভ/সিঙ্ক করুন"
+          >
+            {isSyncingSheet ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+            )}
+            <span>{isSyncingSheet ? 'শিটে সেভ হচ্ছে...' : 'গুগল শিটে সেভ করুন'}</span>
+          </button>
+
+          {onOpenCodeGsModal && (
+            <button
+              onClick={onOpenCodeGsModal}
+              className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+              title="Google Apps Script Code.gs কোড দেখুন"
+            >
+              <FileCode2 className="w-3.5 h-3.5 text-blue-600" />
+              <span>Code.gs</span>
+            </button>
+          )}
+
           <button
             onClick={handleClearDemoData}
             disabled={isClearing}
@@ -554,6 +678,29 @@ export const VisitorAnalyticsDashboard: React.FC<VisitorAnalyticsDashboardProps>
           </button>
         </div>
       </div>
+
+      {/* Google Sheet Sync Status Alert */}
+      {sheetSyncStatus && (
+        <div
+          className={`p-3.5 rounded-2xl text-xs font-bold flex items-center justify-between gap-2 shadow-xs transition-all animate-in fade-in ${
+            sheetSyncStatus.success
+              ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+              : 'bg-rose-50 text-rose-900 border border-rose-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {sheetSyncStatus.success ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <Trash2 className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{sheetSyncStatus.message}</span>
+          </div>
+          <span className="text-[11px] font-medium text-emerald-800 bg-emerald-100/90 px-2.5 py-0.5 rounded-lg shrink-0">
+            📊 শিট: ওয়েবসাইট ভিজিটর তালিকা
+          </span>
+        </div>
+      )}
 
       {/* 3. TREND GRAPH & BREAKDOWN GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

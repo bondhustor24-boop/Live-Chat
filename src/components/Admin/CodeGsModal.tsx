@@ -90,7 +90,100 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // ৩. লাইভ চ্যাট মেসেজ সিঙ্ক (Live Chat Messages)
+    // ৩. ওয়েবসাইট ভিজিটর তালিকা সিঙ্ক (Website Visitors Sheet)
+    if (data.type === 'visitors_sheet' || data.type === 'visitor_log') {
+      var visitorSheet = ss.getSheetByName("ওয়েবসাইট ভিজিটর তালিকা (Website Visitors)") || ss.insertSheet("ওয়েবসাইট ভিজিটর তালিকা (Website Visitors)");
+      
+      // ব্যাচ সিঙ্ক বা রিফ্রেশ মোড
+      if (data.type === 'visitors_sheet') {
+        visitorSheet.clear();
+        visitorSheet.appendRow([
+          "তারিখ ও সময় (Date & Time)",
+          "ভিজিটর আইডি (Visitor ID)",
+          "নাম (Visitor Name)",
+          "ফোন নম্বর (Phone)",
+          "ইমেইল (Email)",
+          "আইপি অ্যাড্রেস (IP Address)",
+          "লোকেশন / দেশ (Location)",
+          "বর্তমান পেজ (Current Page)",
+          "মোট পেজভিউ (Pageviews)",
+          "অবস্থান কাল (Duration / Stay Time)",
+          "ডিভাইস ও ব্রাউজার (Device & Browser)",
+          "ট্রাফিক সোর্স (Traffic Source / Referrer)",
+          "চ্যাট শুরু করেছে কি না (Chat Initiated)"
+        ]);
+        var vRange = visitorSheet.getRange(1, 1, 1, 13);
+        vRange.setFontWeight("bold").setBackground("#4f46e5").setFontColor("#ffffff");
+
+        if (data.visitors && data.visitors.length > 0) {
+          data.visitors.forEach(function(v) {
+            visitorSheet.appendRow([
+              v.visitedAt || v.timestamp || new Date().toLocaleString("bn-BD"),
+              v.visitorId || v.id || "",
+              v.name || "অনলাইন ভিজিটর",
+              v.phone || "",
+              v.email || "",
+              v.ip || "",
+              v.location || "",
+              v.currentPage || "",
+              v.pageviewsCount || v.pageviews || 1,
+              v.timeOnPage || v.duration || "",
+              v.device || "",
+              v.referrer || "",
+              (v.chatInitiated || v.status === 'in_chat') ? "হ্যাঁ (Yes)" : "না (No)"
+            ]);
+          });
+        }
+        return ContentService
+          .createTextOutput(JSON.stringify({ result: "success", type: "visitors_sheet", count: data.visitors ? data.visitors.length : 0 }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      // সিঙ্গেল ভিজিটর লগ অ্যাপেন্ড মোড
+      if (visitorSheet.getLastRow() === 0) {
+        visitorSheet.appendRow([
+          "তারিখ ও সময় (Date & Time)",
+          "ভিজিটর আইডি (Visitor ID)",
+          "নাম (Visitor Name)",
+          "ফোন নম্বর (Phone)",
+          "ইমেইল (Email)",
+          "আইপি অ্যাড্রেস (IP Address)",
+          "লোকেশন / দেশ (Location)",
+          "বর্তমান পেজ (Current Page)",
+          "মোট পেজভিউ (Pageviews)",
+          "অবস্থান কাল (Duration / Stay Time)",
+          "ডিভাইস ও ব্রাউজার (Device & Browser)",
+          "ট্রাফিক সোর্স (Traffic Source / Referrer)",
+          "চ্যাট শুরু করেছে কি না (Chat Initiated)"
+        ]);
+        var vRange2 = visitorSheet.getRange(1, 1, 1, 13);
+        vRange2.setFontWeight("bold").setBackground("#4f46e5").setFontColor("#ffffff");
+      }
+
+      var vSingle = data.visitorData || data.visitor;
+      if (vSingle) {
+        visitorSheet.appendRow([
+          vSingle.visitedAt || vSingle.timestamp || new Date().toLocaleString("bn-BD"),
+          vSingle.visitorId || vSingle.id || "",
+          vSingle.name || "অনলাইন ভিজিটর",
+          vSingle.phone || "",
+          vSingle.email || "",
+          vSingle.ip || "",
+          vSingle.location || "",
+          vSingle.currentPage || "",
+          vSingle.pageviewsCount || vSingle.pageviews || 1,
+          vSingle.timeOnPage || vSingle.duration || "",
+          vSingle.device || "",
+          vSingle.referrer || "",
+          (vSingle.chatInitiated || vSingle.status === 'in_chat') ? "হ্যাঁ (Yes)" : "না (No)"
+        ]);
+      }
+      return ContentService
+        .createTextOutput(JSON.stringify({ result: "success", type: "visitor_log" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ৪. লাইভ চ্যাট মেসেজ সিঙ্ক (Live Chat Messages)
     var sheet = ss.getActiveSheet();
     if (sheet.getLastRow() === 0) {
       sheet.appendRow([
@@ -186,7 +279,7 @@ export const CodeGsModal: React.FC<CodeGsModalProps> = ({ isOpen, onClose, webAp
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                গুগল শিটে এপিআই কি ছাড়াই অটোমেটিক লাইভ চ্যাট মেসেজ সেভ করার জন্য এই কোডটি ব্যবহার করুন।
+                গুগল শিটে অটোমেটিক লাইভ চ্যাট মেসেজ, ওয়েবসাইট ভিজিটর তালিকা, এডমিন ইউজার ও লগইন হিস্ট্রি সেভ করার জন্য এই কোডটি ব্যবহার করুন।
               </p>
             </div>
           </div>
