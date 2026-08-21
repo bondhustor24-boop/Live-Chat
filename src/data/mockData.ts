@@ -44,7 +44,7 @@ export const INITIAL_WIDGET_CONFIG: WidgetConfig = {
   enableAiAutoReply: false,
   aiSystemPrompt: 'আপনি নোভা সাপোর্ট সেন্টারের একজন বিনয়ী ও সহায়ক এআই অ্যাসিস্ট্যান্ট। বাংলায় অত্যন্ত প্রাঞ্জল ও দ্রুত উত্তর প্রদান করুন।',
   departments: ['গ্রাহক সহায়তা (Customer Support)', 'কারিগরি সেলস (Technical Sales)', 'বিলিং ও পেমেন্ট (Billing)', 'সাধারণ জিজ্ঞাসা (General)'],
-  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwc3JsSAxjiMaln2A713d9TT0NZ3YQGIebEXrXIu8AgeLUGOWNMoJar_PihP2laJvFr/exec',
+  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwpQlJRod4muI9TLcxnupaNd4ZgakaPo3L60d6HHzCXdrEEtCGl1k_--FyHHP78yJJT/exec',
   websiteUrl: 'https://live-chat-swart-nine.vercel.app/',
   telegramBotToken: '8861406019:AAHhY47ahk7DS495Ly1eLsa0tYZikFQ86f0',
   telegramChatId: '6081054558',

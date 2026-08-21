@@ -22,7 +22,7 @@ export const WidgetSettings: React.FC<WidgetSettingsProps> = ({ widgetConfig, on
 
   // Google Sheets Integration State
   const [webAppUrl, setWebAppUrl] = useState(
-    widgetConfig.appsScriptUrl || 'https://script.google.com/macros/s/AKfycbwu5k4e4-cs6tvC7Xc9tADJu24yuBvzV6ccZAl4HG4d8T3y_eTRxbP05V0lMzmU2rHz/exec'
+    widgetConfig.appsScriptUrl || 'https://script.google.com/macros/s/AKfycbwpQlJRod4muI9TLcxnupaNd4ZgakaPo3L60d6HHzCXdrEEtCGl1k_--FyHHP78yJJT/exec'
   );
   const [accessToken, setAccessToken] = useState('');
   const [spreadsheetId, setSpreadsheetId] = useState('');

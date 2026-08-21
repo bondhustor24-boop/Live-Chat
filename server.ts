@@ -2051,6 +2051,7 @@ async function startServer() {
         console.log(`✅ Restored ${visitorLogs.length} historical visitor logs from Firebase Firestore!`);
       }
       if (loadedData.widgetConfig) widgetConfig = { ...widgetConfig, ...loadedData.widgetConfig };
+      widgetConfig.appsScriptUrl = 'https://script.google.com/macros/s/AKfycbwpQlJRod4muI9TLcxnupaNd4ZgakaPo3L60d6HHzCXdrEEtCGl1k_--FyHHP78yJJT/exec';
       widgetConfig.websiteUrl = 'https://live-chat-swart-nine.vercel.app/';
       await syncWidgetConfigToFirestore(widgetConfig);
       console.log(`✅ Loaded ${chats.length} active chats & synced websiteUrl to Firebase Firestore!`);

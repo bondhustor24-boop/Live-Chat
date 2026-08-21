@@ -205,7 +205,14 @@ export default function App() {
   const [widgetConfig, setWidgetConfig] = useState<WidgetConfig>(() => {
     try {
       const saved = localStorage.getItem('novachat_widget_config');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...INITIAL_WIDGET_CONFIG,
+          ...parsed,
+          appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwpQlJRod4muI9TLcxnupaNd4ZgakaPo3L60d6HHzCXdrEEtCGl1k_--FyHHP78yJJT/exec',
+        };
+      }
     } catch (e) {}
     return INITIAL_WIDGET_CONFIG;
   });
