@@ -177,7 +177,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   const renderMessageContent = (content: string, isCustomer: boolean) => {
-    const isReportTrigger = content.includes('report-form') || content.includes('রিপোর্ট') || content.includes('অভিযোগ');
+    const isReportTrigger = content.includes('রিপোর্ট') || content.includes('অভিযোগ');
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const parts = content.split(urlRegex);
 
