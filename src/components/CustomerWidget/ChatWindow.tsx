@@ -634,6 +634,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
+            onClick={() => {
+              setReportPhone(chat.customer.phone || '');
+              setShowReportModal(true);
+            }}
+            className="p-2 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-amber-50 transition cursor-pointer"
+            title="অভিযোগ বা সাপোর্ট রিপোর্ট ফরম খুলুন"
+          >
+            <ClipboardList className="w-4 h-4 text-amber-600" />
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
             className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
           >

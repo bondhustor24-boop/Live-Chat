@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
+  ClipboardList,
   Trash2
 } from 'lucide-react';
 import { ChatSession, ChatMessage, Agent, CannedResponse } from '../../types';
@@ -577,6 +578,22 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
           </div>
 
           <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap ml-auto">
+            {/* Send Report Form Shortcut */}
+            <button
+              type="button"
+              onClick={() => {
+                onSendMessage(
+                  '📋 কাস্টমার সাপোর্ট রিপোর্ট ও অভিযোগ ফরম:\nঅনুগ্রহ করে আপনার কোনো অভিযোগ বা সমস্যার বিবরণ দিতে নিচের "রিপোর্ট ফরম পূরণ করুন" বাটনে ক্লিক করুন।',
+                  false
+                );
+              }}
+              className="px-2 py-0.5 sm:py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[10px] sm:text-xs font-semibold rounded-lg border border-amber-200 flex items-center gap-1 transition cursor-pointer"
+              title="ইউজারকে রিপোর্ট/অভিযোগ ফরম পাঠান"
+            >
+              <ClipboardList className="w-3.5 h-3.5 text-amber-700" />
+              <span className="hidden xs:inline">রিপোর্ট ফরম পাঠান</span>
+            </button>
+
             {/* Canned Responses Trigger */}
             <button
               type="button"
