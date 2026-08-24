@@ -810,20 +810,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   />
                 </div>
 
-                {/* Site Link/Name */}
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-0.5">
-                    Site Link / Name (সাইটের লিংক বা নাম)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="যেমন: https://example.com বা সাইটের নাম"
-                    value={reportSiteLink}
-                    onChange={(e) => setReportSiteLink(e.target.value)}
-                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
                 {/* Last Deposit Slip */}
                 <div>
                   <label className="block font-semibold text-slate-700 mb-0.5">
