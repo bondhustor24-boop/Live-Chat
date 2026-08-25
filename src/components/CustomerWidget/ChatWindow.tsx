@@ -57,29 +57,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   const isChatClosed = chat.status === 'resolved' || chat.status === 'closed' || (chat as any).isClosed;
-  const isSendingRef = useRef(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isChatClosed || chat.isBlocked || isSendingRef.current || isSubmitting) return;
+  const handleSend = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (chat.isBlocked) return;
     const textToSend = inputText.trim();
-    const attachToSend = attachments.length > 0 ? attachments : undefined;
+    const attachToSend = attachments.length > 0 ? [...attachments] : undefined;
     if (!textToSend && (!attachToSend || attachToSend.length === 0)) return;
 
-    isSendingRef.current = true;
-    setIsSubmitting(true);
     setInputText('');
     setAttachments([]);
     setShowEmojiPicker(false);
     onTyping(false);
 
-    onSendMessage(textToSend, attachToSend);
+    try {
+      onSendMessage(textToSend, attachToSend);
+    } catch (err) {
+      console.warn('Error sending message:', err);
+    }
+  };
 
-    setTimeout(() => {
-      isSendingRef.current = false;
-      setIsSubmitting(false);
-    }, 600);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
@@ -264,10 +266,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <button
               type="button"
               onClick={handleOpenReportModal}
-              className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+              style={{ backgroundColor: widgetConfig.primaryColor }}
+              className="w-full py-2.5 px-3 hover:opacity-95 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
             >
               <ClipboardList className="w-4 h-4" />
-              <span>📋 রিপোর্ট ফরম পূরণ করুন ({visibleFields.length}টি ফিল্ড)</span>
+              <span>📋 রিপোর্ট ফরম পূরণ করুন</span>
             </button>
           </div>
         )}
@@ -678,12 +681,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <button
             type="button"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
+            className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition shrink-0"
+            title="ইমোজি সিলেক্ট করুন"
           >
             <Smile className="w-4 h-4" />
           </button>
 
-          <label title="ছবি বা ফাইল সংযুক্ত করুন" className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+          <label title="ছবি বা ফাইল সংযুক্ত করুন" className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer shrink-0">
             <Paperclip className="w-4 h-4" />
             <input type="file" accept="image/*,.pdf,.doc,.docx" onChange={handleFileUpload} className="hidden" />
           </label>
@@ -692,27 +696,24 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             type="text"
             value={inputText}
             onChange={handleInputChange}
-            disabled={isSubmitting}
+            onKeyDown={handleKeyDown}
             inputMode="text"
             autoCapitalize="sentences"
             enterKeyHint="send"
             autoComplete="off"
-            placeholder={isSubmitting ? "মেসেজ পাঠানো হচ্ছে..." : "আপনার মেসেজটি লিখুন..."}
-            className="flex-1 text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition touch-manipulation disabled:opacity-60"
+            placeholder="আপনার মেসেজটি লিখুন..."
+            className="flex-1 text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition touch-manipulation text-slate-900 placeholder:text-slate-400 font-medium"
           />
 
           <button
             type="submit"
-            disabled={isSubmitting || (!inputText.trim() && attachments.length === 0)}
+            disabled={!inputText.trim() && attachments.length === 0}
             style={{ backgroundColor: widgetConfig.primaryColor }}
-            className="min-w-[42px] min-h-[42px] p-2.5 text-white rounded-xl shadow-xs hover:opacity-90 active:scale-95 transition flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
-            title={isSubmitting ? "মেসেজ পাঠানো হচ্ছে..." : "মেসেজ পাঠান"}
+            className="w-10 h-10 min-w-[40px] min-h-[40px] text-white rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+            title="মেসেজ পাঠান"
+            aria-label="মেসেজ পাঠান"
           >
-            {isSubmitting ? (
-              <Loader2 className="w-4 h-4 animate-spin text-white" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
+            <Send className="w-4 h-4 text-white stroke-[2.5] translate-x-[1px]" />
           </button>
         </div>
       </form>
@@ -745,7 +746,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <div>
                   <h3 className="font-bold text-slate-900 text-xs sm:text-sm">ইউজার রিপোর্ট ফরম (User Report Form)</h3>
                   <p className="text-[10px] sm:text-[11px] text-slate-500">
-                    আপনার নির্দিষ্ট {visibleFields.length}টি প্রয়োজনীয় তথ্য পূরণ করুন
+                    আপনার প্রয়োজনীয় তথ্যসমূহ সঠিকভাবে পূরণ করুন
                   </p>
                 </div>
               </div>

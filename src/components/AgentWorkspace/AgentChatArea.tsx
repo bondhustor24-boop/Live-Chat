@@ -171,9 +171,8 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
     }
 
     // 2. Send prompt in chat to user
-    const selectedFieldCount = selectedFieldIds.length;
     onSendMessage(
-      `📋 কাস্টমার সাপোর্ট রিপোর্ট ও অভিযোগ ফরম:\nঅনুগ্রহ করে আপনার নির্ধারিত (${selectedFieldCount}টি ফিল্ড) তথ্য প্রদান করতে নিচের "রিপোর্ট ফরম পূরণ করুন" বাটনে ক্লিক করুন।`,
+      `📋 কাস্টমার সাপোর্ট রিপোর্ট ও অভিযোগ ফরম:\nঅনুগ্রহ করে আপনার প্রয়োজনীয় তথ্য প্রদান করতে নিচের "রিপোর্ট ফরম পূরণ করুন" বাটনে ক্লিক করুন।`,
       false
     );
 
