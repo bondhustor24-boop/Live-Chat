@@ -531,10 +531,7 @@ wss.on('connection', (ws: ClientSocket) => {
             messages[chatId] = [];
           }
           const existingIdx = messages[chatId].findIndex(
-            (m) =>
-              (m.id && m.id === newMessage.id) ||
-              (m.senderRole === newMessage.senderRole &&
-                (m.content || '').trim() === (newMessage.content || '').trim())
+            (m) => m.id && m.id === newMessage.id
           );
           if (existingIdx >= 0) {
             messages[chatId][existingIdx] = { ...messages[chatId][existingIdx], ...newMessage };

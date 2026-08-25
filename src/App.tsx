@@ -427,17 +427,13 @@ export default function App() {
             for (const [cId, msgs] of Object.entries(firestoreMessagesMap)) {
               const existing = merged[cId] || [];
               const seenIds = new Set<string>();
-              const seenContent = new Set<string>();
               const uniqueList: ChatMessage[] = [];
 
               for (const m of [...existing, ...(Array.isArray(msgs) ? msgs : [])]) {
                 if (!m) continue;
                 const idKey = m.id ? String(m.id).trim() : null;
-                const contentKey = `${m.senderRole || ''}_${(m.content || '').trim()}_${(m.timestamp || '').trim()}`;
                 if (idKey && seenIds.has(idKey)) continue;
-                if (seenContent.has(contentKey)) continue;
                 if (idKey) seenIds.add(idKey);
-                seenContent.add(contentKey);
                 uniqueList.push(m);
               }
               merged[cId] = uniqueList;
@@ -835,18 +831,13 @@ export default function App() {
                 setMessages((prev) => {
                   const list = prev[chatId] || [];
                   const exists = list.some(
-                    (m) =>
-                      (m.id && message.id && m.id === message.id) ||
-                      (m.senderRole === message.senderRole &&
-                        (m.content || '').trim() === (message.content || '').trim())
+                    (m) => m.id && message.id && m.id === message.id
                   );
                   if (exists) {
                     return {
                       ...prev,
                       [chatId]: list.map((m) =>
-                        (m.id && message.id && m.id === message.id) ||
-                        (m.senderRole === message.senderRole &&
-                          (m.content || '').trim() === (message.content || '').trim())
+                        m.id && message.id && m.id === message.id
                           ? { ...m, ...message }
                           : m
                       ),
@@ -1234,6 +1225,10 @@ export default function App() {
   const handleSendCustomerMessage = async (text: string, attachments?: any[]) => {
     const activeChatId = customerChatId || customerSession?.id;
     if (!activeChatId || (!text.trim() && (!attachments || attachments.length === 0))) return;
+
+    if (!customerChatId && activeChatId) {
+      setCustomerChatId(activeChatId);
+    }
 
     const currentChat = chats.find((c) => c.id === activeChatId) || customerSession;
     const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
@@ -1915,7 +1910,10 @@ export default function App() {
     return null;
   })();
 
-  const customerMessages = customerSession ? (messages[customerSession.id] || []) : (customerChatId ? (messages[customerChatId] || []) : []);
+  const targetCustomerChatId = customerChatId || customerSession?.id;
+  const customerMessages = targetCustomerChatId
+    ? (messages[targetCustomerChatId] || (customerSession ? messages[customerSession.id] || [] : []))
+    : [];
 
   const unreadTotal = chats.reduce((acc, c) => acc + (c.unreadCountAgent || 0), 0);
 

@@ -439,26 +439,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <p className="text-[10px] text-slate-500">ডিপার্টমেন্ট: {chat.department}</p>
         </div>
 
-        {/* Messages List with Duplicate Elimination */}
+        {/* Messages List */}
         {(() => {
           const seenIds = new Set<string>();
-          const seenContent = new Set<string>();
           const displayMessages: ChatMessage[] = [];
 
           for (const m of messages) {
             if (!m || m.isInternalNote) continue;
             const idKey = m.id ? String(m.id).trim() : null;
-            const contentKey = `${m.senderRole || ''}_${(m.content || '').trim()}`;
 
             if (idKey && seenIds.has(idKey)) {
               continue; // Duplicate id - eliminate
             }
-            if (seenContent.has(contentKey)) {
-              continue; // Duplicate content with same sender - eliminate
-            }
 
             if (idKey) seenIds.add(idKey);
-            seenContent.add(contentKey);
             displayMessages.push(m);
           }
 
