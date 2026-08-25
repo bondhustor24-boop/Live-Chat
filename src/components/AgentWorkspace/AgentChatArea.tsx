@@ -441,23 +441,17 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
       <div className="flex-1 p-4 overflow-y-auto space-y-3.5 text-xs">
         {(() => {
           const seenIds = new Set<string>();
-          const seenContent = new Set<string>();
           const displayMessages: ChatMessage[] = [];
 
           for (const m of messages) {
             if (!m) continue;
             const idKey = m.id ? String(m.id).trim() : null;
-            const contentKey = `${m.senderRole || ''}_${(m.content || '').trim()}`;
 
             if (idKey && seenIds.has(idKey)) {
               continue;
             }
-            if (seenContent.has(contentKey)) {
-              continue;
-            }
 
             if (idKey) seenIds.add(idKey);
-            seenContent.add(contentKey);
             displayMessages.push(m);
           }
 

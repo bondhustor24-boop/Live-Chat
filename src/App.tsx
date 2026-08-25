@@ -434,7 +434,12 @@ export default function App() {
                 const idKey = m.id ? String(m.id).trim() : null;
                 if (idKey && seenIds.has(idKey)) continue;
                 if (idKey) seenIds.add(idKey);
-                uniqueList.push(m);
+                const sanitizedMsg: ChatMessage = {
+                  ...m,
+                  isSending: false,
+                  readStatus: m.readStatus === 'sending' ? 'delivered' : (m.readStatus || 'delivered'),
+                };
+                uniqueList.push(sanitizedMsg);
               }
               merged[cId] = uniqueList;
             }
@@ -477,7 +482,17 @@ export default function App() {
           setChats(data.chats);
         }
         if (data.messages && Object.keys(data.messages).length > 0) {
-          setMessages(data.messages);
+          const sanitizedMsgs: Record<string, ChatMessage[]> = {};
+          for (const [cId, list] of Object.entries(data.messages)) {
+            if (Array.isArray(list)) {
+              sanitizedMsgs[cId] = list.map((m: any) => ({
+                ...m,
+                isSending: false,
+                readStatus: m.readStatus === 'sending' ? 'delivered' : (m.readStatus || 'delivered'),
+              }));
+            }
+          }
+          setMessages(sanitizedMsgs);
         }
         if (data.widgetConfig) {
           setWidgetConfig(data.widgetConfig);
@@ -1242,8 +1257,8 @@ export default function App() {
       content: displayMsg,
       attachments,
       timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
-      readStatus: 'sending',
-      isSending: true,
+      readStatus: 'delivered',
+      isSending: false,
     };
 
     setMessages((prev) => ({

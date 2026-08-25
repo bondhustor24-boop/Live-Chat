@@ -380,6 +380,10 @@ export async function syncMessageToFirestore(message: any) {
     if (!cleanData.createdAt) {
       cleanData.createdAt = new Date().toISOString();
     }
+    if (cleanData.readStatus === 'sending') {
+      cleanData.readStatus = 'delivered';
+    }
+    cleanData.isSending = false;
     const msgRef = doc(db, MESSAGES_COL, message.id);
     await setDoc(msgRef, cleanData, { merge: true });
   } catch (err) {

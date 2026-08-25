@@ -484,20 +484,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
                 <div className={`max-w-[80%] space-y-1 ${isCustomer ? 'items-end' : 'items-start'}`}>
                   
-                  {/* Sender Label & Live Transit Status */}
+                  {/* Sender Label & Timestamp */}
                   <div className={`flex items-center gap-1.5 text-[10px] text-slate-400 px-1 ${isCustomer ? 'justify-end' : 'justify-start'}`}>
                     <span>{msg.senderName}</span>
                     <span>•</span>
                     <span>{msg.timestamp}</span>
-                    {isSending && (
-                      <span className="text-[9px] text-blue-500 font-medium animate-pulse inline-flex items-center gap-0.5 ml-0.5">
-                        <Loader2 className="w-2.5 h-2.5 animate-spin text-blue-500" />
-                        সেন্ডিং...
-                      </span>
-                    )}
                   </div>
 
-                  {/* Message Bubble with Visual In-Transit Indicator */}
+                  {/* Message Bubble with Visual Indicator */}
                   <div
                     style={
                       isCustomer
@@ -533,15 +527,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     )}
                   </div>
 
-                  {/* Under customer message bubble: Sending / Delivered / Seen badge */}
+                  {/* Under customer message bubble: Seen / Delivered / Sent badge */}
                   {isCustomer && (
                     <div className="flex items-center justify-end gap-1 pt-0.5 text-[10px] font-semibold">
-                      {isSending ? (
-                        <div className="flex items-center gap-1 text-blue-600 bg-blue-50/90 px-1.5 py-0.5 rounded border border-blue-200/60 shadow-2xs animate-pulse">
-                          <Loader2 className="w-3 h-3 text-blue-500 animate-spin" />
-                          <span className="text-[9px] font-medium text-blue-600">পাঠানো হচ্ছে...</span>
-                        </div>
-                      ) : msg.readStatus === 'read' || chat.adminSeen ? (
+                      {msg.readStatus === 'read' || chat.adminSeen ? (
                         <div className="flex items-center gap-1 text-blue-600 bg-blue-50/80 px-1.5 py-0.5 rounded border border-blue-200/60 shadow-2xs animate-in fade-in">
                           <CheckCheck className="w-3.5 h-3.5 text-blue-600 stroke-[2.5]" />
                           <span>Seen</span>
@@ -555,6 +544,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         <div className="flex items-center gap-1 text-slate-400 text-[9px]">
                           <CheckCheck className="w-3 h-3 text-slate-400" />
                           <span>Delivered</span>
+                        </div>
+                      ) : isSending ? (
+                        <div className="flex items-center gap-1 text-slate-400 text-[9px]">
+                          <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
+                          <span>Sending...</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-1 text-slate-400 text-[9px]">
