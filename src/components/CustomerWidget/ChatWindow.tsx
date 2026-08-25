@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2, ClipboardList, ExternalLink, AlertCircle, CheckCircle2, Megaphone, ChevronLeft, ChevronRight, MessageSquarePlus, Lock, Loader2 } from 'lucide-react';
-import { ChatSession, ChatMessage, WidgetConfig } from '../../types';
+import { ChatSession, ChatMessage, WidgetConfig, ReportFormField } from '../../types';
+import { DEFAULT_MASTER_REPORT_FIELDS } from '../../data/mockData';
 import { sendTelegramNotification } from '../../lib/telegramNotify';
 
 interface ChatWindowProps {
@@ -83,18 +84,34 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
 
-  // Report Form Modal States
+  // Dynamic Report Form Modal States
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportUsername, setReportUsername] = useState('');
-  const [reportPhone, setReportPhone] = useState('');
-  const [reportEmail, setReportEmail] = useState('');
-  const [reportNibondhonName, setReportNibondhonName] = useState('');
-  const [reportLastAmount, setReportLastAmount] = useState('');
-  const [reportLastPassword, setReportLastPassword] = useState('');
-  const [reportSiteLink, setReportSiteLink] = useState('');
+  const [reportFieldValues, setReportFieldValues] = useState<Record<string, string>>({});
   const [reportDepositSlip, setReportDepositSlip] = useState<{ name: string; url: string } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportSuccess, setReportSuccess] = useState<string | null>(null);
+
+  // Determine which fields this specific customer sees:
+  const masterFields: ReportFormField[] = (widgetConfig.masterReportFields && widgetConfig.masterReportFields.length > 0)
+    ? widgetConfig.masterReportFields
+    : DEFAULT_MASTER_REPORT_FIELDS;
+
+  const assignedFieldIds = chat.assignedReportFieldIds;
+  const visibleFields = (assignedFieldIds && assignedFieldIds.length > 0)
+    ? masterFields.filter((f) => assignedFieldIds.includes(f.id))
+    : masterFields;
+
+  const handleOpenReportModal = () => {
+    // Pre-populate known customer values
+    setReportFieldValues((prev) => ({
+      ...prev,
+      username: prev.username || chat.customer.name || '',
+      phone: prev.phone || chat.customer.phone || '',
+      email: prev.email || chat.customer.email || '',
+      nibondhonName: prev.nibondhonName || chat.customer.name || '',
+    }));
+    setShowReportModal(true);
+  };
 
   const handleDepositSlipUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,44 +127,66 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const handleReportFieldValueChange = (fieldId: string, value: string) => {
+    setReportFieldValues((prev) => ({ ...prev, [fieldId]: value }));
+  };
+
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reportUsername.trim() && !reportPhone.trim() && !reportNibondhonName.trim()) return;
+
+    // Check required visible fields
+    for (const field of visibleFields) {
+      if (field.type === 'file') {
+        if (field.required && !reportDepositSlip) {
+          alert(`অনুগ্রহ করে ${field.label} ফাইল বা ছবি আপলোড করুন।`);
+          return;
+        }
+      } else {
+        const val = (reportFieldValues[field.id] || '').trim();
+        if (field.required && !val) {
+          alert(`অনুগ্রহ করে "${field.label}" ফিল্ডটি পূরণ করুন।`);
+          return;
+        }
+      }
+    }
 
     setReportSubmitting(true);
 
-    const reportPayload = {
-      username: reportUsername,
-      phone: reportPhone || chat.customer.phone,
-      email: reportEmail || chat.customer.email,
-      nibondhonName: reportNibondhonName,
-      lastAmount: reportLastAmount,
-      lastPassword: reportLastPassword,
-      siteLink: reportSiteLink,
-      depositSlipUrl: reportDepositSlip?.url,
-      customerName: chat.customer.name,
-    };
+    const reportFieldsList = visibleFields.map((f) => {
+      if (f.type === 'file') {
+        return {
+          label: f.label,
+          value: reportDepositSlip ? `📷 ${reportDepositSlip.name}` : 'সংযুক্ত নেই',
+        };
+      }
+      return {
+        label: f.label,
+        value: (reportFieldValues[f.id] || '').trim() || 'N/A',
+      };
+    });
 
-    // 1. Send data DIRECTLY to Telegram Bot with Photo attachment support
+    const reportDataMap: Record<string, string> = {};
+    visibleFields.forEach((f) => {
+      if (f.type === 'file') {
+        if (reportDepositSlip) reportDataMap[f.id] = reportDepositSlip.name;
+      } else {
+        reportDataMap[f.id] = (reportFieldValues[f.id] || '').trim();
+      }
+    });
+
+    // 1. Send data to Telegram Bot with dynamic fields and photo attachment
     try {
       await sendTelegramNotification(
         {
           type: 'user_report',
           customerName: chat.customer.name,
-          customerPhone: reportPhone || chat.customer.phone,
-          customerEmail: reportEmail || chat.customer.email,
+          customerPhone: reportFieldValues.phone || chat.customer.phone,
+          customerEmail: reportFieldValues.email || chat.customer.email,
           chatId: chat.id,
           photoUrl: reportDepositSlip?.url,
           photoName: reportDepositSlip?.name || 'deposit_slip.jpg',
-          reportData: {
-            username: reportUsername,
-            phone: reportPhone || chat.customer.phone,
-            email: reportEmail || chat.customer.email,
-            nibondhonName: reportNibondhonName,
-            lastAmount: reportLastAmount,
-            lastPassword: reportLastPassword,
-            siteLink: reportSiteLink,
-          },
+          reportData: reportDataMap,
+          reportFieldsList,
         },
         widgetConfig
       );
@@ -155,24 +194,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       console.warn('Telegram report sending error:', err);
     }
 
-    // 2. In Chat window: send ONLY a clean confirmation message (No sensitive password/data in public chat)
-    onSendMessage('✅ আপনার রিপোর্ট ফরমটি সফলভাবে সাবমিট হয়েছে। খুব শীঘ্রই আপনার সমস্যাটি সমাধান করা হবে।');
+    // 2. Update chat session with submitted report data via API
+    try {
+      await fetch(`/api/chats/${chat.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          submittedReportData: reportDataMap,
+        }),
+      });
+    } catch (err) {
+      console.warn('Error saving submitted report data:', err);
+    }
+
+    // 3. Send confirmation in chat
+    onSendMessage('✅ আপনার কাস্টমাইজড রিপোর্ট ফরমটি সফলভাবে সাবমিট হয়েছে। আমাদের সাপোর্ট টিম দ্রুত যাচাই করে সমাধান করবে।');
 
     setTimeout(() => {
       setReportSubmitting(false);
-      setReportSuccess('আপনার রিপোর্ট সফলভাবে সাবমিট হয়েছে। খুব শীঘ্রই সমাধান করা হবে!');
+      setReportSuccess('আপনার রিপোর্ট সফলভাবে সাবমিট হয়েছে। ধন্যবাদ!');
       setTimeout(() => {
         setShowReportModal(false);
         setReportSuccess(null);
-        setReportUsername('');
-        setReportPhone('');
-        setReportEmail('');
-        setReportNibondhonName('');
-        setReportLastAmount('');
-        setReportLastPassword('');
-        setReportSiteLink('');
+        setReportFieldValues({});
         setReportDepositSlip(null);
-      }, 2000);
+      }, 1800);
     }, 400);
   };
 
@@ -213,18 +259,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               <span>অনলাইন সাপোর্ট ও রিপোর্ট ফরম</span>
             </div>
             <p className="text-[11px] text-slate-600 leading-tight">
-              আপনার অভিযোগ বা সমস্যা জানাতে নিচের বাটনে ক্লিক করে ফরম পূরণ করুন:
+              আপনার অভিযোগ বা তথ্য জানাতে নিচের বাটনে ক্লিক করে নির্দিষ্ট ফরমটি পূরণ করুন:
             </p>
             <button
               type="button"
-              onClick={() => {
-                setReportPhone(chat.customer.phone || '');
-                setShowReportModal(true);
-              }}
+              onClick={handleOpenReportModal}
               className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
             >
               <ClipboardList className="w-4 h-4" />
-              <span>📋 রিপোর্ট ফরম পূরণ করুন (Fill Form)</span>
+              <span>📋 রিপোর্ট ফরম পূরণ করুন ({visibleFields.length}টি ফিল্ড)</span>
             </button>
           </div>
         )}
@@ -634,18 +677,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => {
-              setReportPhone(chat.customer.phone || '');
-              setShowReportModal(true);
-            }}
-            className="p-2 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-amber-50 transition cursor-pointer"
-            title="অভিযোগ বা সাপোর্ট রিপোর্ট ফরম খুলুন"
-          >
-            <ClipboardList className="w-4 h-4 text-amber-600" />
-          </button>
-
-          <button
-            type="button"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
             className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
           >
@@ -702,7 +733,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
       )}
 
-      {/* Interactive User Report Form Modal */}
+      {/* Interactive User Report Form Modal - Dynamically Tailored for this User */}
       {showReportModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-2xl border border-slate-200 relative space-y-3 max-h-[90vh] overflow-y-auto">
@@ -713,7 +744,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-xs sm:text-sm">ইউজার রিপোর্ট ফরম (User Report Form)</h3>
-                  <p className="text-[10px] sm:text-[11px] text-slate-500">আপনার প্রয়োজনীয় তথ্যসমূহ সঠিকভাবে পূরণ করুন</p>
+                  <p className="text-[10px] sm:text-[11px] text-slate-500">
+                    আপনার নির্দিষ্ট {visibleFields.length}টি প্রয়োজনীয় তথ্য পূরণ করুন
+                  </p>
                 </div>
               </div>
               <button
@@ -734,128 +767,82 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <p className="text-xs text-slate-600 px-2">{reportSuccess}</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmitReport} className="space-y-2.5 text-xs">
-                {/* Username */}
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-0.5">
-                    Username (ইউজারনেম) <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="যেমন: john_doe12"
-                    value={reportUsername}
-                    onChange={(e) => setReportUsername(e.target.value)}
-                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
+              <form onSubmit={handleSubmitReport} className="space-y-3 text-xs">
+                {visibleFields.map((field) => {
+                  const currentValue = reportFieldValues[field.id] || '';
 
-                {/* Phone Number */}
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-0.5">
-                    Phone Number (ফোন নম্বর) <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="যেমন: 01700000000"
-                    value={reportPhone}
-                    onChange={(e) => setReportPhone(e.target.value)}
-                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Email Address */}
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-0.5">
-                    Email Address (ইমেইল এড্রেস)
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="যেমন: user@example.com"
-                    value={reportEmail}
-                    onChange={(e) => setReportEmail(e.target.value)}
-                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Nibondhon Name */}
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-0.5">
-                    নিবন্ধন নাম (Nibondhon Name) <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="অ্যাকাউন্টে নিবন্ধিত নাম"
-                    value={reportNibondhonName}
-                    onChange={(e) => setReportNibondhonName(e.target.value)}
-                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Last Amount */}
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-0.5">
-                    সর্বশেষ জমা করার পরিমাণ (Last Amount)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="যেমন: 500 BDT / ৳৫০০"
-                    value={reportLastAmount}
-                    onChange={(e) => setReportLastAmount(e.target.value)}
-                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Last Login Password */}
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-0.5">
-                    সর্বশেষ লগইন পাসওয়ার্ড (Last Login Password)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="আপনার শেষ পাসওয়ার্ড"
-                    value={reportLastPassword}
-                    onChange={(e) => setReportLastPassword(e.target.value)}
-                    className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Last Deposit Slip */}
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-0.5">
-                    সর্বশেষ ডিপোজিট স্লিপ (Last Deposit Slip)
-                  </label>
-                  <div className="border-2 border-dashed border-slate-200 rounded-xl p-2.5 text-center hover:bg-slate-50 transition cursor-pointer relative">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleDepositSlipUpload}
-                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    />
-                    {reportDepositSlip ? (
-                      <div className="flex items-center justify-between text-emerald-700 font-semibold text-xs">
-                        <span className="truncate max-w-[200px]">📷 {reportDepositSlip.name}</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setReportDepositSlip(null);
-                          }}
-                          className="text-rose-500 p-1 hover:bg-rose-50 rounded"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                  if (field.type === 'file') {
+                    return (
+                      <div key={field.id}>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          {field.label} {field.required && <span className="text-rose-500">*</span>}
+                        </label>
+                        <div className="border-2 border-dashed border-slate-200 rounded-xl p-2.5 text-center hover:bg-slate-50 transition cursor-pointer relative">
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={handleDepositSlipUpload}
+                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          />
+                          {reportDepositSlip ? (
+                            <div className="flex items-center justify-between text-emerald-700 font-semibold text-xs">
+                              <span className="truncate max-w-[200px]">📷 {reportDepositSlip.name}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setReportDepositSlip(null);
+                                }}
+                                className="text-rose-500 p-1 hover:bg-rose-50 rounded"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1.5 text-slate-500 text-xs">
+                              <Paperclip className="w-4 h-4 text-slate-400" />
+                              <span>{field.placeholder || 'ছবি বা ফাইল আপলোড করুন'}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-1.5 text-slate-500 text-xs">
-                        <Paperclip className="w-4 h-4 text-slate-400" />
-                        <span>ডিপোজিট স্লিপের ছবি আপলোড করুন</span>
+                    );
+                  }
+
+                  if (field.type === 'textarea') {
+                    return (
+                      <div key={field.id}>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          {field.label} {field.required && <span className="text-rose-500">*</span>}
+                        </label>
+                        <textarea
+                          rows={3}
+                          required={field.required}
+                          placeholder={field.placeholder || ''}
+                          value={currentValue}
+                          onChange={(e) => handleReportFieldValueChange(field.id, e.target.value)}
+                          className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs"
+                        />
                       </div>
-                    )}
-                  </div>
-                </div>
+                    );
+                  }
+
+                  return (
+                    <div key={field.id}>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        {field.label} {field.required && <span className="text-rose-500">*</span>}
+                      </label>
+                      <input
+                        type={field.type === 'password' ? 'password' : field.type === 'email' ? 'email' : field.type === 'number' ? 'number' : field.type === 'tel' ? 'tel' : 'text'}
+                        required={field.required}
+                        placeholder={field.placeholder || ''}
+                        value={currentValue}
+                        onChange={(e) => handleReportFieldValueChange(field.id, e.target.value)}
+                        className="w-full p-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs"
+                      />
+                    </div>
+                  );
+                })}
 
                 <div className="pt-2 flex items-center justify-end gap-2 sticky bottom-0 bg-white border-t border-slate-100 mt-3">
                   <button
@@ -867,7 +854,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   </button>
                   <button
                     type="submit"
-                    disabled={reportSubmitting || (!reportUsername.trim() && !reportPhone.trim() && !reportNibondhonName.trim())}
+                    disabled={reportSubmitting}
                     style={{ backgroundColor: widgetConfig.primaryColor }}
                     className="px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs hover:opacity-90 transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                   >

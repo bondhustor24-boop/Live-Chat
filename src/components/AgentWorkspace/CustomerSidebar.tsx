@@ -15,7 +15,10 @@ import {
   Phone,
   HeartHandshake,
   AlertTriangle,
-  Smile
+  Smile,
+  ClipboardList,
+  CheckCircle2,
+  Paperclip
 } from 'lucide-react';
 import { ChatSession, ChatMessage } from '../../types';
 import { analyzeChatSessionSentiment } from '../../utils/sentiment';
@@ -336,6 +339,67 @@ export const CustomerSidebar: React.FC<CustomerSidebarProps> = ({
             <Plus className="w-4 h-4" />
           </button>
         </form>
+      </div>
+
+      {/* Customer Report Form Status & Submitted Data */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <ClipboardList className="w-3.5 h-3.5 text-amber-600" />
+            <span>কাস্টমার রিপোর্ট ফরম স্ট্যাটাস</span>
+          </h4>
+          {chat.submittedReportData ? (
+            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" />
+              <span>জমা দেওয়া হয়েছে</span>
+            </span>
+          ) : (
+            <span className="bg-slate-100 text-slate-500 text-[10px] font-medium px-2 py-0.5 rounded-full">
+              {chat.assignedReportFieldIds ? `${chat.assignedReportFieldIds.length}টি ফিল্ড অ্যাসাইন করা` : 'ডিফল্ট'}
+            </span>
+          )}
+        </div>
+
+        {chat.submittedReportData ? (
+          <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2 text-xs">
+            <div className="text-[11px] font-bold text-amber-950 border-b border-amber-200 pb-1 flex items-center justify-between">
+              <span>জমা দেওয়া তথ্যাবলী:</span>
+              <span className="font-mono text-[10px] text-amber-700">
+                {new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+            
+            <div className="space-y-1.5">
+              {Object.entries(chat.submittedReportData).map(([key, value]) => {
+                if (key === 'fileAttachments' && Array.isArray(value)) {
+                  return (
+                    <div key={key} className="pt-1">
+                      <span className="text-slate-500 text-[10px] block">সংযুক্ত ফাইল ({value.length}টি):</span>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {value.map((f: any, idx: number) => (
+                          <div key={idx} className="p-1.5 bg-white border border-amber-200 rounded-lg text-[10px] flex items-center gap-1">
+                            <Paperclip className="w-3 h-3 text-amber-600" />
+                            <span className="truncate max-w-[120px]">{f.name || `ফাইল ${idx + 1}`}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={key} className="flex flex-col bg-white p-2 rounded-lg border border-amber-100">
+                    <span className="text-[10px] font-semibold text-slate-500">{key}</span>
+                    <span className="font-bold text-slate-800 text-[11px] break-all">{String(value) || '-'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-500 text-[11px]">
+            গ্রাহক এখনও রিপোর্ট ফরম সাবমিট করেননি। চ্যাট বক্স থেকে "📋 রিপোর্ট ফরম পাঠান" বাটনে ক্লিক করে ফরম পাঠাতে পারেন।
+          </div>
+        )}
       </div>
 
       {/* Internal Agent Notes */}

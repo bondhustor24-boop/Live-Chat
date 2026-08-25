@@ -1875,6 +1875,21 @@ export default function App() {
     setAgents((prev) => prev.filter((a) => a.id !== agentId));
   };
 
+  const handleUpdateChatReportFields = async (chatId: string, assignedFieldIds: string[]) => {
+    setChats((prev) =>
+      prev.map((c) => (c.id === chatId ? { ...c, assignedReportFieldIds: assignedFieldIds } : c))
+    );
+    try {
+      await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignedReportFieldIds: assignedFieldIds }),
+      });
+    } catch (e) {
+      console.warn('Error updating chat report fields:', e);
+    }
+  };
+
   // Selected chat data
   const selectedChat = chats.find((c) => c.id === selectedChatId) || null;
   const currentChatMessages = selectedChatId ? messages[selectedChatId] || [] : [];
@@ -2016,12 +2031,15 @@ export default function App() {
                 agents={agents}
                 activeAgent={activeAgent}
                 cannedResponses={cannedResponses}
+                widgetConfig={widgetConfig}
                 onSendMessage={handleSendAgentMessage}
                 onAssignAgent={handleAssignAgent}
                 onChangeStatus={handleChangeStatus}
                 onToggleStar={handleToggleStar}
                 onTyping={handleAgentTyping}
                 onDeleteMessage={handleDeleteMessage}
+                onUpdateChatFields={handleUpdateChatReportFields}
+                onUpdateWidgetConfig={handleSaveSettings}
                 isCustomerTyping={isCustomerTyping}
                 onBackToList={() => setMobileWorkspaceView('list')}
               />

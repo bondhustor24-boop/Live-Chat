@@ -1183,13 +1183,15 @@ app.patch('/api/chats/:id', (req, res) => {
   const chat = chats.find((c) => c.id === req.params.id);
   if (!chat) return res.status(404).json({ error: 'Chat not found' });
 
-  const { status, priority, isStarred, department, notes, tags } = req.body;
+  const { status, priority, isStarred, department, notes, tags, assignedReportFieldIds, submittedReportData } = req.body;
   if (status) chat.status = status;
   if (priority) chat.priority = priority;
   if (typeof isStarred === 'boolean') chat.isStarred = isStarred;
   if (department) chat.department = department;
   if (notes !== undefined) chat.customer.notes = notes;
   if (tags) chat.customer.tags = tags;
+  if (assignedReportFieldIds !== undefined) chat.assignedReportFieldIds = assignedReportFieldIds;
+  if (submittedReportData !== undefined) chat.submittedReportData = submittedReportData;
 
   chat.updatedAt = new Date().toISOString();
 

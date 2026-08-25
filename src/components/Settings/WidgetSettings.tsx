@@ -1,6 +1,32 @@
 import React, { useState } from 'react';
-import { Settings, Save, Check, Palette, Bot, Sliders, FileSpreadsheet, ExternalLink, RefreshCw, AlertCircle, Copy, Download, Code, CheckCircle2, Bell, Send } from 'lucide-react';
-import { WidgetConfig } from '../../types';
+import {
+  Settings,
+  Save,
+  Check,
+  Palette,
+  Bot,
+  Sliders,
+  FileSpreadsheet,
+  ExternalLink,
+  RefreshCw,
+  AlertCircle,
+  Copy,
+  Download,
+  Code,
+  CheckCircle2,
+  Bell,
+  Send,
+  ClipboardList,
+  Plus,
+  Trash2,
+  Edit2,
+  FileText,
+  Lock,
+  Layers,
+  X
+} from 'lucide-react';
+import { WidgetConfig, ReportFormField } from '../../types';
+import { DEFAULT_MASTER_REPORT_FIELDS } from '../../data/mockData';
 
 interface WidgetSettingsProps {
   widgetConfig: WidgetConfig;
@@ -60,9 +86,70 @@ export const WidgetSettings: React.FC<WidgetSettingsProps> = ({ widgetConfig, on
     }
   };
 
+  // Master Report Fields State
+  const [masterFields, setMasterFields] = useState<ReportFormField[]>(
+    config.masterReportFields && config.masterReportFields.length > 0
+      ? config.masterReportFields
+      : DEFAULT_MASTER_REPORT_FIELDS
+  );
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [newFieldType, setNewFieldType] = useState<ReportFormField['type']>('text');
+  const [newFieldPlaceholder, setNewFieldPlaceholder] = useState('');
+  const [newFieldRequired, setNewFieldRequired] = useState(false);
+  const [showAddFieldForm, setShowAddFieldForm] = useState(false);
+
+  const handleAddField = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFieldLabel.trim()) return;
+
+    const newId = `field_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const createdField: ReportFormField = {
+      id: newId,
+      label: newFieldLabel.trim(),
+      type: newFieldType,
+      placeholder: newFieldPlaceholder.trim(),
+      required: newFieldRequired,
+      order: masterFields.length + 1,
+    };
+
+    const updated = [...masterFields, createdField];
+    setMasterFields(updated);
+    setConfig((prev) => ({ ...prev, masterReportFields: updated }));
+
+    setNewFieldLabel('');
+    setNewFieldPlaceholder('');
+    setNewFieldRequired(false);
+    setNewFieldType('text');
+    setShowAddFieldForm(false);
+  };
+
+  const handleDeleteField = (id: string) => {
+    const updated = masterFields.filter((f) => f.id !== id);
+    setMasterFields(updated);
+    setConfig((prev) => ({ ...prev, masterReportFields: updated }));
+  };
+
+  const handleToggleRequired = (id: string) => {
+    const updated = masterFields.map((f) => (f.id === id ? { ...f, required: !f.required } : f));
+    setMasterFields(updated);
+    setConfig((prev) => ({ ...prev, masterReportFields: updated }));
+  };
+
+  const handleResetToDefaultFields = () => {
+    if (window.confirm('আপনি কি নিশ্চিত যে মাস্টার রিপোর্ট ফরমের ফিল্ডগুলো ডিফল্ট অবস্থায় ফিরিয়ে নিতে চান?')) {
+      setMasterFields(DEFAULT_MASTER_REPORT_FIELDS);
+      setConfig((prev) => ({ ...prev, masterReportFields: DEFAULT_MASTER_REPORT_FIELDS }));
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const updatedConfig = { ...config, appsScriptUrl: webAppUrl.trim() };
+    const updatedConfig = {
+      ...config,
+      appsScriptUrl: webAppUrl.trim(),
+      masterReportFields: masterFields,
+    };
     onSaveSettings(updatedConfig);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2000);
@@ -590,6 +677,210 @@ function forwardSmsToNovaAdmin(phone, message, customerName) {
               <p className="text-[11px] text-slate-400 mt-1">
                 গ্রাহকদের অটোমেটিক বাংলা উত্তর দেওয়ার জন্য Gemini 3.6 Flash এই ইনস্ট্রাকশনটি ব্যবহার করবে।
               </p>
+            </div>
+          </div>
+
+          {/* MASTER REPORT FORM & DYNAMIC FIELD MANAGER */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-50 text-amber-700 rounded-xl">
+                  <ClipboardList className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <span>মাস্টার রিপোর্ট ফরম ও ফিল্ড ম্যানেজার (Master Report Form)</span>
+                    <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                      {masterFields.length}টি ফিল্ড
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    মাস্টার ফরমের সমস্ত ফিল্ড এখানে যোগ বা কনফিগার করুন। চ্যাটে অ্যাডমিন নির্দিষ্ট ইউজারের জন্য এই ফিল্ডগুলোর যেকোনো অংশ (যেমন: ৫টি বা ৭টি) নির্ধারণ করে পাঠাতে পারবেন।
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleResetToDefaultFields}
+                  className="px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
+                  title="ডিফল্ট ফিল্ডে রিসেট করুন"
+                >
+                  রিসেট
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddFieldForm(!showAddFieldForm)}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>নতুন ফিল্ড যোগ করুন</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Add New Field Drawer / Form */}
+            {showAddFieldForm && (
+              <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-xs text-amber-950 flex items-center gap-1.5">
+                    <Plus className="w-4 h-4 text-amber-600" />
+                    <span>মাস্টার ফরমে নতুন ফিল্ড যোগ করুন</span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddFieldForm(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      ফিল্ডের শিরোনাম / Label <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="যেমন: রেফারেল কোড বা লেনদেন আইডি"
+                      value={newFieldLabel}
+                      onChange={(e) => setNewFieldLabel(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      ফিল্ড টাইপ (Field Type)
+                    </label>
+                    <select
+                      value={newFieldType}
+                      onChange={(e) => setNewFieldType(e.target.value as ReportFormField['type'])}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    >
+                      <option value="text">টেক্সট (Text)</option>
+                      <option value="tel">ফোন নম্বর (Phone / Tel)</option>
+                      <option value="email">ইমেইল (Email)</option>
+                      <option value="number">সংখ্যা (Number / Amount)</option>
+                      <option value="password">পাসওয়ার্ড (Password)</option>
+                      <option value="textarea">বড় টেক্সট (Textarea / বিবরণ)</option>
+                      <option value="file">ছবি বা ফাইল আপলোড (Image/Slip)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      প্লেসহোল্ডার টেক্সট (Placeholder)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="যেমন: আপনার রেফারেল কোড লিখুন..."
+                      value={newFieldPlaceholder}
+                      onChange={(e) => setNewFieldPlaceholder(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center pt-5">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={newFieldRequired}
+                        onChange={(e) => setNewFieldRequired(e.target.checked)}
+                        className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4"
+                      />
+                      <span>ফিল্ডটি বাধ্যতামূলক (Required) করুন</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddFieldForm(false)}
+                    className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200/60 rounded-lg"
+                  >
+                    বাতিল
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddField}
+                    className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-xs"
+                  >
+                    সংরক্ষণ করুন
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* List of Master Form Fields */}
+            <div className="space-y-2">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                <span>মাস্টার ফরম ফিল্ড তালিকা ({masterFields.length}টি)</span>
+                <span>স্ট্যাটাস ও অ্যাকশন</span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
+                {masterFields.map((field, idx) => (
+                  <div
+                    key={field.id}
+                    className="p-3 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-3 text-xs transition"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-6 h-6 rounded-lg bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-[11px] shrink-0">
+                        {idx + 1}
+                      </div>
+                      <div className="truncate">
+                        <div className="font-bold text-slate-800 flex items-center gap-2">
+                          <span className="truncate">{field.label}</span>
+                          {field.required ? (
+                            <span className="bg-rose-100 text-rose-700 text-[10px] font-bold px-1.5 py-0.2 rounded">
+                              আবশ্যক (Required)
+                            </span>
+                          ) : (
+                            <span className="bg-slate-200 text-slate-600 text-[10px] font-medium px-1.5 py-0.2 rounded">
+                              ঐচ্ছিক (Optional)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                          <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                            type: {field.type}
+                          </span>
+                          {field.placeholder && <span className="truncate">"{field.placeholder}"</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleRequired(field.id)}
+                        className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition ${
+                          field.required
+                            ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                        }`}
+                        title="আবশ্যক বা ঐচ্ছিক পরিবর্তন করুন"
+                      >
+                        {field.required ? 'আবশ্যক' : 'ঐচ্ছিক'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteField(field.id)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                        title="ফিল্ডটি মুছুন"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
