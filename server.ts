@@ -575,6 +575,13 @@ wss.on('connection', (ws: ClientSocket) => {
             sendInstantGoogleSheetSync(targetChat, newMessage);
           }
 
+          // WhatsApp Auto-Reply: schedule if customer message, cancel if admin/agent message
+          if (senderRole === 'agent') {
+            cancelWhatsAppAutoReply(chatId);
+          } else if (senderRole === 'customer') {
+            scheduleWhatsAppAutoReply(chatId);
+          }
+
           // Check if AI Auto-reply should trigger for Customer messages
           if (
             senderRole === 'customer' &&
@@ -742,6 +749,141 @@ async function triggerAiAutoReply(chatId: string, customerQuery: string) {
   }
 }
 
+// WHATSAPP AUTO-REPLY ENGINE (When user sends SMS / message and Admin does not reply)
+const pendingWhatsAppReplies = new Map<string, NodeJS.Timeout>();
+const lastWhatsAppReplySent = new Map<string, number>();
+
+function triggerWhatsAppAutoReplyNow(chatId: string) {
+  const waConfig = widgetConfig.whatsappAutoReply || {
+    enabled: true,
+    whatsappNumber: '01314224258',
+    delaySeconds: 15,
+    messageText: 'অতি দ্রুত সমাধানের জন্য সরাসরি আমাদের হোয়াটসঅ্যাপ নম্বরে (01314224258) মেসেজ করার জন্য অনুরোধ করা হচ্ছে। নিচের বাটনে ক্লিক করে সরাসরি হোয়াটসঅ্যাপে চ্যাট শুরু করতে পারেন।',
+  };
+
+  const rawNumber = waConfig.whatsappNumber || '01314224258';
+  const cleanNumber = rawNumber.replace(/[^0-9]/g, '') || '01314224258';
+  const intlNumber = cleanNumber.startsWith('88') ? cleanNumber : `88${cleanNumber}`;
+  const defaultText = `অতি দ্রুত সমাধানের জন্য সরাসরি আমাদের হোয়াটসঅ্যাপ নম্বরে (${rawNumber}) মেসেজ করার জন্য অনুরোধ করা হচ্ছে। নিচের বাটনে ক্লিক করে সরাসরি হোয়াটসঅ্যাপে চ্যাট শুরু করতে পারেন।`;
+  let messageContent = waConfig.messageText || defaultText;
+  messageContent = messageContent.replace(/সম্মানিত গ্রাহক,?\s*এডমিন এই মুহূর্তে রিপ্লাই দিতে না পারায় আমরা আন্তরিকভাবে দুঃখিত।?\s*/g, '').trim();
+  if (!messageContent) {
+    messageContent = defaultText;
+  }
+  const waUrl = `https://wa.me/${intlNumber}?text=${encodeURIComponent(`হ্যালো, আমি লাইভ চ্যাট থেকে এসেছি (Chat ID: #${chatId})। জরুরি সহায়তা প্রয়োজন।`)}`;
+
+  const botMessage: ChatMessage = {
+    id: 'msg_wa_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+    chatId,
+    senderRole: 'bot',
+    senderName: 'হোয়াটসঅ্যাপ হেল্পডেস্ক',
+    senderAvatar: 'https://cdn-icons-png.flaticon.com/512/3670/3670051.png',
+    content: messageContent,
+    timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
+    createdAt: new Date().toISOString(),
+    readStatus: 'delivered',
+    whatsappAction: {
+      phone: rawNumber,
+      url: waUrl,
+      buttonText: `হোয়াটসঅ্যাপে মেসেজ পাঠান (${rawNumber})`,
+    },
+    quickReplies: [`হোয়াটসঅ্যাপ: ${rawNumber}`, 'এডমিনের জন্য অপেক্ষা করুন'],
+  };
+
+  if (!messages[chatId]) messages[chatId] = [];
+  messages[chatId].push(botMessage);
+  lastWhatsAppReplySent.set(chatId, Date.now());
+
+  const targetChat = chats.find((c) => c.id === chatId);
+  if (targetChat) {
+    targetChat.lastMessage = messageContent;
+    targetChat.lastMessageTime = 'Just now';
+    targetChat.updatedAt = new Date().toISOString();
+    targetChat.unreadCountCustomer = (targetChat.unreadCountCustomer || 0) + 1;
+    syncChatToFirestore(targetChat);
+  }
+
+  syncMessageToFirestore(botMessage);
+
+  broadcast({
+    type: 'new_message',
+    chatId,
+    message: botMessage,
+    chat: targetChat,
+  });
+
+  // If customer phone is available and Apps Script is configured, forward SMS notification
+  if (targetChat && targetChat.customer && targetChat.customer.phone && widgetConfig.appsScriptUrl) {
+    try {
+      fetch(widgetConfig.appsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send_sms',
+          phone: targetChat.customer.phone,
+          message: messageContent,
+        }),
+      }).catch(() => {});
+    } catch {}
+  }
+}
+
+function scheduleWhatsAppAutoReply(chatId: string) {
+  const waConfig = widgetConfig.whatsappAutoReply || {
+    enabled: true,
+    whatsappNumber: '01314224258',
+    delaySeconds: 15,
+    messageText: 'অতি দ্রুত সমাধানের জন্য সরাসরি আমাদের হোয়াটসঅ্যাপ নম্বরে (01314224258) মেসেজ করার জন্য অনুরোধ করা হচ্ছে। নিচের বাটনে ক্লিক করে সরাসরি হোয়াটসঅ্যাপে চ্যাট শুরু করতে পারেন।',
+  };
+
+  if (waConfig.enabled === false) return;
+
+  // Don't duplicate if sent within the last 90 seconds
+  const lastSent = lastWhatsAppReplySent.get(chatId) || 0;
+  if (Date.now() - lastSent < 90000) {
+    return;
+  }
+
+  // Clear any existing timer
+  if (pendingWhatsAppReplies.has(chatId)) {
+    clearTimeout(pendingWhatsAppReplies.get(chatId)!);
+    pendingWhatsAppReplies.delete(chatId);
+  }
+
+  const delayMs = Math.max(3000, (waConfig.delaySeconds ?? 15) * 1000);
+
+  const timer = setTimeout(() => {
+    pendingWhatsAppReplies.delete(chatId);
+
+    // Verify if an admin or agent has already replied
+    const chatMsgs = messages[chatId] || [];
+    if (chatMsgs.length === 0) return;
+
+    let lastCustomerIdx = -1;
+    let lastAgentIdx = -1;
+    for (let i = 0; i < chatMsgs.length; i++) {
+      if (chatMsgs[i].senderRole === 'customer') lastCustomerIdx = i;
+      if (chatMsgs[i].senderRole === 'agent') lastAgentIdx = i;
+    }
+
+    // If admin replied after the customer's last message, do not send auto-reply
+    if (lastAgentIdx > lastCustomerIdx) {
+      return;
+    }
+
+    triggerWhatsAppAutoReplyNow(chatId);
+  }, delayMs);
+
+  pendingWhatsAppReplies.set(chatId, timer);
+}
+
+function cancelWhatsAppAutoReply(chatId: string) {
+  if (pendingWhatsAppReplies.has(chatId)) {
+    clearTimeout(pendingWhatsAppReplies.get(chatId)!);
+    pendingWhatsAppReplies.delete(chatId);
+  }
+}
+
 // INCOMING SMS & GOOGLE SHEET WEBHOOK (Phone -> Google Sheet / App -> Admin Realtime)
 app.all(['/api/webhook/sms', '/api/webhook/google-sheet', '/api/webhook/incoming', '/api/incoming-sms'], (req, res) => {
   const payload = { ...req.query, ...req.body };
@@ -854,6 +996,9 @@ app.all(['/api/webhook/sms', '/api/webhook/google-sheet', '/api/webhook/incoming
       message: newMsg,
       chat: targetChat,
     });
+
+    // WhatsApp Auto-reply: if admin does not reply, customer gets WhatsApp prompt
+    scheduleWhatsAppAutoReply(chatId);
 
     processed.push({ chatId, messageId: newMsg.id, phone, content });
   });
@@ -1163,6 +1308,13 @@ app.post('/api/chats/:id/messages', (req, res) => {
     sendTelegramNotification(targetChat, newMessage.content || (attachments && attachments.length > 0 ? '📷 [ছবি/ফাইল]' : ''), false);
   }
 
+  // WhatsApp Auto-Reply: schedule if customer message, cancel if admin/agent message
+  if (senderRole === 'agent') {
+    cancelWhatsAppAutoReply(chatId);
+  } else if (senderRole === 'customer') {
+    scheduleWhatsAppAutoReply(chatId);
+  }
+
   // Check AI Auto Reply if enabled
   if (
     senderRole === 'customer' &&
@@ -1173,6 +1325,15 @@ app.post('/api/chats/:id/messages', (req, res) => {
   }
 
   res.json({ message: newMessage, chat: targetChat });
+});
+
+// Manual / direct WhatsApp auto reply trigger endpoint
+app.post('/api/chats/:id/whatsapp-reply', (req, res) => {
+  const chatId = req.params.id;
+  const targetChat = chats.find((c) => c.id === chatId);
+  if (!targetChat) return res.status(404).json({ error: 'Chat session not found' });
+  triggerWhatsAppAutoReplyNow(chatId);
+  res.json({ success: true, message: 'হোয়াটসঅ্যাপ অটো-রিপ্লাই সফলভাবে পাঠানো হয়েছে!' });
 });
 
 // PATCH Chat
@@ -2050,6 +2211,20 @@ async function startServer() {
         console.log(`✅ Restored ${visitorLogs.length} historical visitor logs from Firebase Firestore!`);
       }
       if (loadedData.widgetConfig) widgetConfig = { ...widgetConfig, ...loadedData.widgetConfig };
+      if (widgetConfig.whatsappAutoReply?.messageText) {
+        widgetConfig.whatsappAutoReply.messageText = widgetConfig.whatsappAutoReply.messageText
+          .replace(/সম্মানিত গ্রাহক,?\s*এডমিন এই মুহূর্তে রিপ্লাই দিতে না পারায় আমরা আন্তরিকভাবে দুঃখিত।?\s*/g, '')
+          .trim();
+      }
+      // Also sanitize in-memory messages if any had the old phrase
+      for (const [cId, msgList] of Object.entries(messages)) {
+        for (const msg of msgList) {
+          if (msg.content && msg.content.includes('সম্মানিত গ্রাহক, এডমিন এই মুহূর্তে রিপ্লাই দিতে না পারায় আমরা আন্তরিকভাবে দুঃখিত।')) {
+            msg.content = msg.content.replace(/সম্মানিত গ্রাহক,?\s*এডমিন এই মুহূর্তে রিপ্লাই দিতে না পারায় আমরা আন্তরিকভাবে দুঃখিত।?\s*/g, '').trim();
+            syncMessageToFirestore(msg);
+          }
+        }
+      }
       widgetConfig.appsScriptUrl = 'https://script.google.com/macros/s/AKfycbwpQlJRod4muI9TLcxnupaNd4ZgakaPo3L60d6HHzCXdrEEtCGl1k_--FyHHP78yJJT/exec';
       widgetConfig.websiteUrl = 'https://live-chat-swart-nine.vercel.app/';
       await syncWidgetConfigToFirestore(widgetConfig);

@@ -171,7 +171,13 @@ export const INITIAL_WIDGET_CONFIG: WidgetConfig = {
     linkUrl: 'https://live-chat-swart-nine.vercel.app/',
     buttonText: 'প্রধান ওয়েবসাইট ভিজিট করুন 🚀'
   },
-  masterReportFields: DEFAULT_MASTER_REPORT_FIELDS
+  masterReportFields: DEFAULT_MASTER_REPORT_FIELDS,
+  whatsappAutoReply: {
+    enabled: true,
+    whatsappNumber: '01314224258',
+    delaySeconds: 15,
+    messageText: 'অতি দ্রুত সমাধানের জন্য সরাসরি আমাদের হোয়াটসঅ্যাপ নম্বরে (01314224258) মেসেজ করার জন্য অনুরোধ করা হচ্ছে। নিচের বাটনে ক্লিক করে সরাসরি হোয়াটসঅ্যাপে চ্যাট শুরু করতে পারেন।',
+  }
 };
 
 export const INITIAL_CANNED_RESPONSES: CannedResponse[] = [

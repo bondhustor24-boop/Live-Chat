@@ -241,6 +241,10 @@ export default function App() {
   const selectedChatIdRef = useRef(selectedChatId);
   selectedChatIdRef.current = selectedChatId;
 
+  // Pending WhatsApp auto-reply timers (fallback if admin does not reply)
+  const pendingWhatsAppTimerRef = useRef<Record<string, any>>({});
+  const lastWhatsAppSentRef = useRef<Record<string, number>>({});
+
   useEffect(() => {
     if (customerChatId) {
       try {
@@ -864,6 +868,14 @@ export default function App() {
                   };
                 });
 
+                // Cancel pending WhatsApp auto-reply if an admin/agent replied
+                if (message.senderRole === 'agent') {
+                  if (pendingWhatsAppTimerRef.current[chatId]) {
+                    clearTimeout(pendingWhatsAppTimerRef.current[chatId]);
+                    delete pendingWhatsAppTimerRef.current[chatId];
+                  }
+                }
+
                 // Trigger notification & sound chime
                 const sender = message.senderName || 'গ্রাহক';
                 const messageText = message.content || message.text || '';
@@ -1340,6 +1352,72 @@ export default function App() {
       console.warn('Message send network warning:', e);
     }
 
+    // Schedule WhatsApp auto-reply if admin does not reply
+    if (widgetConfig.whatsappAutoReply?.enabled !== false) {
+      if (pendingWhatsAppTimerRef.current[activeChatId]) {
+        clearTimeout(pendingWhatsAppTimerRef.current[activeChatId]);
+      }
+      const delayMs = Math.max(3000, (widgetConfig.whatsappAutoReply?.delaySeconds ?? 15) * 1000);
+      pendingWhatsAppTimerRef.current[activeChatId] = setTimeout(async () => {
+        setMessages((currentMsgs) => {
+          const list = currentMsgs[activeChatId] || [];
+          const hasAgentReplied = list.some(
+            (m) =>
+              m.senderRole === 'agent' &&
+              new Date(m.createdAt || 0).getTime() > new Date(newMsg.createdAt || 0).getTime()
+          );
+          const lastSent = lastWhatsAppSentRef.current[activeChatId] || 0;
+          if (hasAgentReplied || Date.now() - lastSent < 90000) {
+            return currentMsgs;
+          }
+
+          const alreadyHasWaMsg = list.some(
+            (m) => m.whatsappAction || m.content.includes('01314224258')
+          );
+          if (alreadyHasWaMsg) {
+            return currentMsgs;
+          }
+
+          const waPhone = widgetConfig.whatsappAutoReply?.whatsappNumber || '01314224258';
+          const cleanWa = waPhone.replace(/[^0-9]/g, '');
+          const intlWa = cleanWa.startsWith('88') ? cleanWa : `88${cleanWa}`;
+          const defaultText = `অতি দ্রুত সমাধানের জন্য সরাসরি আমাদের হোয়াটসঅ্যাপ নম্বরে (${waPhone}) মেসেজ করার জন্য অনুরোধ করা হচ্ছে। নিচের বাটনে ক্লিক করে সরাসরি হোয়াটসঅ্যাপে চ্যাট শুরু করতে পারেন।`;
+          let waText = widgetConfig.whatsappAutoReply?.messageText || defaultText;
+          waText = waText.replace(/সম্মানিত গ্রাহক,?\s*এডমিন এই মুহূর্তে রিপ্লাই দিতে না পারায় আমরা আন্তরিকভাবে দুঃখিত।?\s*/g, '').trim();
+          if (!waText) waText = defaultText;
+          const waUrl = `https://wa.me/${intlWa}?text=${encodeURIComponent(
+            `হ্যালো, আমি লাইভ চ্যাট থেকে এসেছি (Chat ID: #${activeChatId})। জরুরি সহায়তা প্রয়োজন।`
+          )}`;
+
+          const botWaMsg: ChatMessage = {
+            id: 'msg_wa_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+            chatId: activeChatId,
+            senderRole: 'bot',
+            senderName: 'হোয়াটসঅ্যাপ হেল্পডেস্ক',
+            senderAvatar: 'https://cdn-icons-png.flaticon.com/512/3670/3670051.png',
+            content: waText,
+            timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
+            createdAt: new Date().toISOString(),
+            readStatus: 'delivered',
+            whatsappAction: {
+              phone: waPhone,
+              url: waUrl,
+              buttonText: `হোয়াটসঅ্যাপে মেসেজ পাঠান (${waPhone})`,
+            },
+            quickReplies: [`হোয়াটসঅ্যাপ: ${waPhone}`, 'এডমিনের জন্য অপেক্ষা করুন'],
+          };
+
+          lastWhatsAppSentRef.current[activeChatId] = Date.now();
+          syncMessageToFirestore(botWaMsg);
+
+          return {
+            ...currentMsgs,
+            [activeChatId]: [...list, botWaMsg],
+          };
+        });
+      }, delayMs);
+    }
+
     // Client-side AI Auto Reply when WebSocket/server endpoint unavailable
     if (widgetConfig.enableAiAutoReply && (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)) {
       setTimeout(() => {
@@ -1427,6 +1505,11 @@ export default function App() {
   const handleSendAdminMessage = async (chatId: string, text: string, isInternalNote?: boolean) => {
     if (!chatId || !text.trim()) return;
 
+    if (pendingWhatsAppTimerRef.current[chatId]) {
+      clearTimeout(pendingWhatsAppTimerRef.current[chatId]);
+      delete pendingWhatsAppTimerRef.current[chatId];
+    }
+
     const currentChat = chats.find((c) => c.id === chatId);
     const newMsg: ChatMessage = {
       id: 'msg_' + Date.now(),
@@ -1510,6 +1593,11 @@ export default function App() {
   // Agent Actions
   const handleSendAgentMessage = async (text: string, isInternalNote?: boolean, attachments?: any[]) => {
     if (!selectedChatId || (!text.trim() && (!attachments || attachments.length === 0))) return;
+
+    if (pendingWhatsAppTimerRef.current[selectedChatId]) {
+      clearTimeout(pendingWhatsAppTimerRef.current[selectedChatId]);
+      delete pendingWhatsAppTimerRef.current[selectedChatId];
+    }
 
     const currentChat = chats.find((c) => c.id === selectedChatId);
     const displayMsg = text.trim() || (attachments && attachments.length > 0 ? '📷 [ছবি/ফাইল]' : '');

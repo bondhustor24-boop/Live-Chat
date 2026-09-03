@@ -20,7 +20,8 @@ import {
   Plus,
   SlidersHorizontal,
   CheckSquare,
-  Square
+  Square,
+  MessageCircle
 } from 'lucide-react';
 import { ChatSession, ChatMessage, Agent, CannedResponse, WidgetConfig, ReportFormField } from '../../types';
 import { DEFAULT_MASTER_REPORT_FIELDS } from '../../data/mockData';
@@ -555,6 +556,24 @@ export const AgentChatArea: React.FC<AgentChatAreaProps> = ({
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{msg.content}</p>
+
+                  {(msg.whatsappAction || msg.content.includes('01314224258') || msg.content.includes('হোয়াটসঅ্যাপ')) && (
+                    <div className="mt-2 p-2 bg-emerald-50 border border-emerald-300/80 rounded-xl text-xs flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-emerald-800 font-semibold">
+                        <MessageCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>হোয়াটসঅ্যাপ অটো-এসএমএস (01314224258)</span>
+                      </div>
+                      <a
+                        href={msg.whatsappAction?.url || `https://wa.me/8801314224258?text=${encodeURIComponent(`হ্যালো, লাইভ চ্যাট আইডি: #${chat.id}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-[11px] inline-flex items-center gap-1 shadow-2xs"
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                        <span>ওপেন করুন</span>
+                      </a>
+                    </div>
+                  )}
 
                   {msg.attachments && msg.attachments.length > 0 && (
                     <div className="mt-2 space-y-1.5">

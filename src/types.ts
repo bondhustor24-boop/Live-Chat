@@ -44,6 +44,11 @@ export interface ChatMessage {
   seenAt?: string;
   seenBy?: string;
   createdAt?: string;
+  whatsappAction?: {
+    phone: string;
+    url: string;
+    buttonText?: string;
+  };
 }
 
 export interface CustomerInfo {
@@ -277,6 +282,13 @@ export interface NoticeHeaderConfig {
   updatedAt?: string;
 }
 
+export interface WhatsAppAutoReplyConfig {
+  enabled: boolean;
+  whatsappNumber: string;
+  delaySeconds: number;
+  messageText: string;
+}
+
 export interface WidgetConfig {
   primaryColor: string;
   headerTitle: string;
@@ -297,4 +309,5 @@ export interface WidgetConfig {
   promoBanner?: PromoBanner;
   promoBanners?: PromoBanner[];
   masterReportFields?: ReportFormField[];
+  whatsappAutoReply?: WhatsAppAutoReplyConfig;
 }

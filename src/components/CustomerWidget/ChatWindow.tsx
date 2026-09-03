@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2, ClipboardList, ExternalLink, AlertCircle, CheckCircle2, Megaphone, ChevronLeft, ChevronRight, MessageSquarePlus, Lock, Loader2 } from 'lucide-react';
+import { Send, Paperclip, Smile, RefreshCw, X, ShieldCheck, FileText, Image as ImageIcon, Check, CheckCheck, Maximize2, Minimize2, ClipboardList, ExternalLink, AlertCircle, CheckCircle2, Megaphone, ChevronLeft, ChevronRight, MessageSquarePlus, Lock, Loader2, MessageCircle, Phone } from 'lucide-react';
 import { ChatSession, ChatMessage, WidgetConfig, ReportFormField } from '../../types';
 import { DEFAULT_MASTER_REPORT_FIELDS } from '../../data/mockData';
 import { sendTelegramNotification } from '../../lib/telegramNotify';
@@ -224,10 +224,23 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }, 400);
   };
 
-  const renderMessageContent = (content: string, isCustomer: boolean) => {
+  const renderMessageContent = (content: string, isCustomer: boolean, msgObj?: ChatMessage) => {
     const isReportTrigger = content.includes('রিপোর্ট') || content.includes('অভিযোগ');
+    const isWhatsAppTrigger =
+      Boolean(msgObj?.whatsappAction) ||
+      content.includes('01314224258') ||
+      content.toLowerCase().includes('whatsapp') ||
+      content.includes('হোয়াটসঅ্যাপ') ||
+      content.includes('হোয়াটসঅ্যাপ');
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const parts = content.split(urlRegex);
+
+    const waPhone = msgObj?.whatsappAction?.phone || widgetConfig.whatsappAutoReply?.whatsappNumber || '01314224258';
+    const cleanWaNumber = waPhone.replace(/[^0-9]/g, '');
+    const intlWaNumber = cleanWaNumber.startsWith('88') ? cleanWaNumber : `88${cleanWaNumber}`;
+    const waUrl =
+      msgObj?.whatsappAction?.url ||
+      `https://wa.me/${intlWaNumber}?text=${encodeURIComponent(`হ্যালো, আমি লাইভ চ্যাট থেকে এসেছি (Chat ID: #${chat.id})। জরুরি সহায়তা প্রয়োজন।`)}`;
 
     return (
       <div className="space-y-2">
@@ -252,6 +265,30 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             return part;
           })}
         </p>
+
+        {/* WhatsApp Direct Connect Action Card */}
+        {isWhatsAppTrigger && !isCustomer && (
+          <div className="mt-2.5 p-3 bg-emerald-50/95 border border-emerald-300/80 rounded-xl flex flex-col gap-2 shadow-xs text-left">
+            <div className="flex items-center gap-1.5 text-emerald-900 font-bold text-xs">
+              <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <MessageCircle className="w-3 h-3" />
+              </div>
+              <span>হোয়াটসঅ্যাপে সরাসরি মেসেজ পাঠান</span>
+            </div>
+            <p className="text-[11px] text-emerald-800 leading-tight">
+              এডমিনের উত্তরের অপেক্ষায় না থেকে দ্রুততম সাপোর্টের জন্য নিচে ক্লিক করে সরাসরি হোয়াটসঅ্যাপে মেসেজ করুন:
+            </p>
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition cursor-pointer"
+            >
+              <MessageCircle className="w-4 h-4 fill-white text-emerald-600 shrink-0" />
+              <span>📱 হোয়াটসঅ্যাপে মেসেজ পাঠান ({waPhone})</span>
+            </a>
+          </div>
+        )}
 
         {/* Interactive Report Form Button if message contains report link/trigger */}
         {isReportTrigger && !isCustomer && (
@@ -506,7 +543,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         : 'rounded-bl-xs border-slate-200/80 text-slate-800'
                     }`}
                   >
-                    {renderMessageContent(msg.content, isCustomer)}
+                    {renderMessageContent(msg.content, isCustomer, msg)}
 
                     {/* Attachments preview */}
                     {msg.attachments && msg.attachments.length > 0 && (
@@ -562,15 +599,38 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   {/* Quick Reply Pills if present */}
                   {msg.quickReplies && msg.quickReplies.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1.5">
-                      {msg.quickReplies.map((pill, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => onSendQuickReply(pill)}
-                          className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 text-[11px] font-medium rounded-full shadow-2xs transition"
-                        >
-                          {pill}
-                        </button>
-                      ))}
+                      {msg.quickReplies.map((pill, idx) => {
+                        const isWaPill = pill.includes('হোয়াটসঅ্যাপ') || pill.includes('WhatsApp') || pill.includes('01314224258');
+                        const waPhone = msg.whatsappAction?.phone || widgetConfig.whatsappAutoReply?.whatsappNumber || '01314224258';
+                        const cleanWa = waPhone.replace(/[^0-9]/g, '');
+                        const intlWa = cleanWa.startsWith('88') ? cleanWa : `88${cleanWa}`;
+                        const waUrl = msg.whatsappAction?.url || `https://wa.me/${intlWa}?text=${encodeURIComponent(`হ্যালো, আমি লাইভ চ্যাট থেকে এসেছি (Chat ID: #${chat.id})।`)}`;
+
+                        if (isWaPill) {
+                          return (
+                            <a
+                              key={idx}
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-[11px] font-bold rounded-full shadow-2xs transition inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <MessageCircle className="w-3 h-3 text-emerald-600" />
+                              <span>{pill}</span>
+                            </a>
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => onSendQuickReply(pill)}
+                            className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 text-[11px] font-medium rounded-full shadow-2xs transition cursor-pointer"
+                          >
+                            {pill}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
 

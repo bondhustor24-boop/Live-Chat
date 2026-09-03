@@ -23,7 +23,9 @@ import {
   FileText,
   Lock,
   Layers,
-  X
+  X,
+  MessageCircle,
+  Phone
 } from 'lucide-react';
 import { WidgetConfig, ReportFormField } from '../../types';
 import { DEFAULT_MASTER_REPORT_FIELDS } from '../../data/mockData';
@@ -1007,6 +1009,149 @@ function forwardSmsToNovaAdmin(phone, message, customerName) {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* WhatsApp Auto-Reply when Admin Does Not Reply */}
+          <div className="bg-white rounded-2xl p-5 border border-emerald-200/80 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl">
+                  <MessageCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <span>হোয়াটসঅ্যাপ অটো-এসএমএস (অ্যাডমিন রিপ্লাই না দিলে)</span>
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                      01314224258
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    ইউজার এসএমএস বা মেসেজ পাঠালে এডমিন রিপ্লাই না দিলে স্বয়ংক্রিয়ভাবে বাংলায় হোয়াটসঅ্যাপ নম্বরে যোগাযোগের অনুরোধ মেসেজ যাবে।
+                  </p>
+                </div>
+              </div>
+
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.whatsappAutoReply?.enabled ?? true}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      whatsappAutoReply: {
+                        enabled: e.target.checked,
+                        whatsappNumber: config.whatsappAutoReply?.whatsappNumber || '01314224258',
+                        delaySeconds: config.whatsappAutoReply?.delaySeconds || 15,
+                        messageText:
+                          config.whatsappAutoReply?.messageText ||
+                          'অতি দ্রুত সমাধানের জন্য সরাসরি আমাদের হোয়াটসঅ্যাপ নম্বরে (01314224258) মেসেজ করার জন্য অনুরোধ করা হচ্ছে। নিচের বাটনে ক্লিক করে সরাসরি হোয়াটসঅ্যাপে চ্যাট শুরু করতে পারেন।',
+                      },
+                    })
+                  }
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block font-semibold text-xs text-slate-700 mb-1">
+                  হোয়াটসঅ্যাপ নম্বর (WhatsApp Phone Number)
+                </label>
+                <input
+                  type="text"
+                  value={config.whatsappAutoReply?.whatsappNumber ?? '01314224258'}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      whatsappAutoReply: {
+                        enabled: config.whatsappAutoReply?.enabled ?? true,
+                        whatsappNumber: e.target.value,
+                        delaySeconds: config.whatsappAutoReply?.delaySeconds || 15,
+                        messageText:
+                          config.whatsappAutoReply?.messageText ||
+                          'অতি দ্রুত সমাধানের জন্য সরাসরি আমাদের হোয়াটসঅ্যাপ নম্বরে (01314224258) মেসেজ করার জন্য অনুরোধ করা হচ্ছে। নিচের বাটনে ক্লিক করে সরাসরি হোয়াটসঅ্যাপে চ্যাট শুরু করতে পারেন।',
+                      },
+                    })
+                  }
+                  placeholder="01314224258"
+                  className="w-full p-2.5 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  যে নম্বরে কাস্টমারকে যোগাযোগ করতে বলা হবে (যেমন: 01314224258)।
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-xs text-slate-700 mb-1">
+                  অ্যাডমিন রিপ্লাই না দিলে বিলম্ব (সেকেন্ড)
+                </label>
+                <input
+                  type="number"
+                  min={3}
+                  max={300}
+                  value={config.whatsappAutoReply?.delaySeconds ?? 15}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      whatsappAutoReply: {
+                        enabled: config.whatsappAutoReply?.enabled ?? true,
+                        whatsappNumber: config.whatsappAutoReply?.whatsappNumber || '01314224258',
+                        delaySeconds: Number(e.target.value) || 15,
+                        messageText:
+                          config.whatsappAutoReply?.messageText ||
+                          'অতি দ্রুত সমাধানের জন্য সরাসরি আমাদের হোয়াটসঅ্যাপ নম্বরে (01314224258) মেসেজ করার জন্য অনুরোধ করা হচ্ছে। নিচের বাটনে ক্লিক করে সরাসরি হোয়াটসঅ্যাপে চ্যাট শুরু করতে পারেন।',
+                      },
+                    })
+                  }
+                  className="w-full p-2.5 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  কাস্টমার মেসেজ করার পর অ্যাডমিন উত্তর না দিলে কত সেকেন্ড পর অটো মেসেজ যাবে (ডিফল্ট: ১৫ সেকেন্ড)।
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-xs text-slate-700 mb-1">
+                গ্রাহককে পাঠানোর স্বয়ংক্রিয় অনুরোধ বার্তা (বাংলায়)
+              </label>
+              <textarea
+                rows={3}
+                value={
+                  config.whatsappAutoReply?.messageText ??
+                  'অতি দ্রুত সমাধানের জন্য সরাসরি আমাদের হোয়াটসঅ্যাপ নম্বরে (01314224258) মেসেজ করার জন্য অনুরোধ করা হচ্ছে। নিচের বাটনে ক্লিক করে সরাসরি হোয়াটসঅ্যাপে চ্যাট শুরু করতে পারেন।'
+                }
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    whatsappAutoReply: {
+                      enabled: config.whatsappAutoReply?.enabled ?? true,
+                      whatsappNumber: config.whatsappAutoReply?.whatsappNumber || '01314224258',
+                      delaySeconds: config.whatsappAutoReply?.delaySeconds || 15,
+                      messageText: e.target.value,
+                    },
+                  })
+                }
+                className="w-full p-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 leading-relaxed"
+              />
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+              <a
+                href={`https://wa.me/88${(config.whatsappAutoReply?.whatsappNumber || '01314224258').replace(/[^0-9]/g, '')}?text=${encodeURIComponent('আসসালামু আলাইকুম, লাইভ চ্যাট থেকে টেস্ট মেসেজ।')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs rounded-xl transition border border-emerald-300 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <MessageCircle className="w-4 h-4 text-emerald-600" />
+                <span>হোয়াটসঅ্যাপ লিংক টেস্ট করুন ({config.whatsappAutoReply?.whatsappNumber || '01314224258'})</span>
+              </a>
+              <span className="text-[11px] text-emerald-700 font-medium">
+                ✓ গ্রাহক ক্লিক করলে সরাসরি হোয়াটসঅ্যাপ অ্যাপ বা ওয়েবে চ্যাট শুরু হবে
+              </span>
             </div>
           </div>
 
